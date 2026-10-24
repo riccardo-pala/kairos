@@ -1,0 +1,40 @@
+backend/tests/test_workflow.py
+  s_1a155232b304c5::t_1893230d42c4a5 1-5,7-159,161-162
+  s_1a155232b304c5::t_fc68c8fdf91f2c 6,160
+backend/src/kairos/models/event.py
+  h_2c303d13c1af0a 2-3,5-7,10-13
+  s_1a155232b304c5::t_ecee836cfd2eed 4,8-9,15,17,19,21-22,27
+  s_1a155232b304c5::t_f9d3050b656ccd 1,14,16,18,20,23-26,28-29
+backend/tests/test_event.py
+  h_2c303d13c1af0a 1-10
+backend/pyproject.toml
+  s_1a155232b304c5::t_af93ef9d8786ab 16-19
+  s_1a155232b304c5::t_ecee836cfd2eed 5-15
+  h_2c303d13c1af0a 1-4
+backend/src/kairos/workflow.py
+  s_1a155232b304c5::t_ecee836cfd2eed 1-2,4-74,77-137,140-148
+  s_1a155232b304c5::t_fc68c8fdf91f2c 3,75-76,138-139
+backend/uv.lock
+  s_1a155232b304c5::t_0e23a531bbb7a9 1-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3c17dac07e8e6eb39380087f56d1a45c6031544b",
+  "prompts": {},
+  "humans": {
+    "h_2c303d13c1af0a": {
+      "author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  },
+  "sessions": {
+    "s_1a155232b304c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16ec3-ba62-7f53-a8b2-4a9d1fcdab0b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
