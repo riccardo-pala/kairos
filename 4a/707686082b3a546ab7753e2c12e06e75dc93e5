@@ -1,0 +1,24 @@
+backend/src/kairos/providers.py
+  s_1a155232b304c5::t_ecee836cfd2eed 1-90
+backend/tests/test_providers.py
+  s_1a155232b304c5::t_1893230d42c4a5 1-2,4-8,10-17,23-54
+  s_1a155232b304c5::t_7129c1e01c410d 3,9,18-22
+backend/src/kairos/__main__.py
+  s_1a155232b304c5::t_ecee836cfd2eed 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4a707686082b3a546ab7753e2c12e06e75dc93e5",
+  "prompts": {},
+  "sessions": {
+    "s_1a155232b304c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16ec3-ba62-7f53-a8b2-4a9d1fcdab0b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
