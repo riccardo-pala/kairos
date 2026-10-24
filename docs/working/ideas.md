@@ -17,6 +17,8 @@ Questi sono casi d’uso e capacità proposti dall’utente per la prima version
 3. **Contesto personale accumulato.** L’assistente dovrebbe conoscere progressivamente l’utente e conservare le informazioni essenziali che aiutano a personalizzare l’assistenza.
 4. **Possibile onboarding guidato.** Si può valutare un avvio guidato con pulsanti, tag e selezioni, lasciando facoltativo l’inserimento manuale e senza rendere obbligatorio il testo.
 5. **Supporto multilingua fin dall’inizio.** Le lingue iniziali richieste sono inglese e italiano.
+6. **Copertura multilingua dei testi e delle domande.** L’utente richiede che testi e domande siano gestiti per codice lingua e rispettino un contratto che garantisca copertura per tutte le lingue supportate.
+7. **Architettura estendibile a più tool.** Il modello deve poter scegliere fra più tool disponibili, mantenendo il flusso per turno definito dall’app.
 
 ### Chiarimento esplicito sui widget
 
@@ -33,6 +35,15 @@ Questi sono casi d’uso e capacità proposti dall’utente per la prima version
 
 - Anticipare i guardrail dei modelli fin dalla prima versione, pur avendo l’utente indicato il tema come pro futuro. È una proposta del coordinatore, non una decisione dell’utente.
 
+## Appunti e proposte da discutere — non autorizzano implementazione
+
+- Evitare di generare chiarimenti LLM in tutte le lingue per contenere i costi; valutare la lingua per turno e metodi senza un ulteriore agente LLM, mantenendo completo il catalogo statico localizzato.
+- Valutare lo streaming delle risposte e messaggi di avanzamento contestuali.
+- **Proposta preferita del coordinatore:** determinare una lingua per turno usando preferenza o lingua della chat, con fallback per messaggi brevi; non introdurre inizialmente un LLM dedicato alla lingua.
+- **Proposta preferita del coordinatore per lo streaming:** trasmettere eventi di fase e testo; rendere visibili gli argomenti delle tool call solo dopo completamento e validazione. Lo stato va prodotto dal codice, senza narrare il ragionamento del modello.
+
+Questi punti sono appunti e proposte da discutere, non decisioni dell’utente né autorizzazioni a modificare il codice.
+
 ## Contesto di progetto riportato
 
 - App mobile di assistente personale basata su LLM.
@@ -41,6 +52,7 @@ Questi sono casi d’uso e capacità proposti dall’utente per la prima version
 - L’utente vuole partecipare attivamente e seguire da vicino il lavoro.
 - Il frontend è principalmente affidato al coordinatore.
 - **Preferenza di collaborazione esplicita dell’utente:** procedere più spediti con le implementazioni e fermarsi sulle spiegazioni dei passaggi critici, in particolare workflow, chiamate ai tool e integrazione LLM. L’utente non vuole essere guidato manualmente su ogni dettaglio di base. Questa preferenza non cambia il carattere didattico e hands-on del progetto.
+- **Organizzazione del lavoro esplicita dell’utente:** il coordinatore interpreta le richieste e le traduce in task per Luna Sviluppo, scegliendo il livello di reasoning in base alla complessità; il coordinatore non scrive codice. Non iniziare automaticamente uno sviluppo: quando utile, prima si fa brainstorming. Luna Commit, con reasoning basso, gestisce i commit locali per scope.
 
 Questi punti sono contesto fornito dal coordinatore per avviare il registro; non aggiungono requisiti di prodotto oltre a quelli esplicitamente attribuiti all’utente sopra.
 
@@ -61,12 +73,16 @@ Questi punti sono contesto fornito dal coordinatore per avviare il registro; non
 - Provider simulato.
 - Adattatore Ollama opzionale.
 - CLI.
+- Enum `Language` e catalogo di messaggi localizzati completo, con validazione all’avvio per verificare la copertura delle lingue.
+- Tipo `LocalizedText` usato anche per i chiarimenti generati dal LLM.
+- Registro di tool estendibile, con schema, handler e disponibilità per ciascun tool. Sono presenti `update_event_draft` e `ask_event_clarification`; il secondo espone una capacità di chiarimento già esistente in forma separata. Il workflow sceglie una chiamata per turno.
+- I chiarimenti LLM sono ancora rappresentati con `LocalizedText` completo; lo streaming è disattivato (`false`).
 
-Questi elementi descrivono implementazioni iniziali verificate dal coordinatore; non costituiscono una decisione di adottare definitivamente Ollama. Al momento della verifica non risultavano ancora implementate API, persistenza, notifiche o UI.
+Questi elementi descrivono implementazioni iniziali verificate dal coordinatore; l’estensione del registro non implica nuove funzioni di prodotto né autorizza azioni esterne. Non costituiscono una decisione di adottare definitivamente Ollama. Al momento della verifica non risultavano ancora implementate API, persistenza, notifiche o UI. Le proposte su lingua per turno e streaming non descrivono lo stato attuale del codice.
 
 ## Decisioni
 
-- Nessuna decisione architetturale o di implementazione definitiva approvata registrata al momento. Le implementazioni iniziali sopra elencate sono stato di avanzamento, non una scelta definitiva di stack o provider.
+- Nessuna decisione architetturale o di implementazione definitiva approvata registrata al momento. Le implementazioni iniziali sopra elencate sono stato di avanzamento e scelte estendibili, non una scelta definitiva di stack o provider.
 - La filosofia esplicita dell’utente è il riferimento per valutare le funzionalità: favorire il momento opportuno e contrastare il rimandare.
 - La lista della spesa è esclusa dalla prima POC e conservata come idea futura, da rivalutare per una possibile integrazione coerente con il prodotto. Il perimetro v1 restante non cambia.
 - Criterio di focus esplicito: mantenere le funzionalità coerenti con il problema della procrastinazione ed evitare un insieme dispersivo di funzioni.

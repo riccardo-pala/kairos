@@ -38,6 +38,8 @@ Requisiti confermati: entrambe le lingue fin dall'inizio e componenti interattiv
 
 Proposta: separare lingua dell'interfaccia, lingua della conversazione e fuso orario. Tradurre le stringhe statiche tramite risorse dell'app; usare gli stessi dati strutturati per entrambe le lingue. Date numeriche ambigue richiedono chiarimento quando il contesto non basta. La lingua non determina da sola il fuso orario.
 
+Nel backend il contratto è ora implementato con `Language`, `MessageCatalog` e `LocalizedText`: le traduzioni sono indicizzate per codice lingua e la copertura è verificata all'avvio e per le domande generate dal modello. Per leggere una domanda si usa `state.question.text(context.language)`. Il registro `ToolRegistry` espone i tool disponibili e collega ciascuna scelta a schema e gestore: attualmente `update_event_draft` e `ask_event_clarification`. Il modello sceglie una chiamata per turno, mentre il codice conserva il controllo sull'esecuzione.
+
 ## Primo esercizio hands-on
 
 1. Definire insieme i modelli Python della bozza e costruire due esempi equivalenti IT/EN senza chiamare un LLM.

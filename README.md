@@ -27,7 +27,7 @@ Per la conversazione reale, occorrono Ollama avviato su `localhost:11434` e un m
 uv run python -m kairos --model NOME_MODELLO --language it --timezone Europe/Rome
 ```
 
-Usare `--language en` per le domande predefinite in inglese e `/exit` per terminare. La data corrente è letta all'avvio della CLI: per una nuova sessione dopo un cambio di giorno riavviare il processo. Nessun modello viene scaricato automaticamente. Il nome del modello è configurabile; qualità dell'estrazione e rispetto delle istruzioni vanno valutati sul modello scelto.
+Usare `--language en` per i testi della CLI e i dati dimostrativi in inglese, e `/exit` per terminare. Le domande nella struttura JSON contengono tutte le lingue supportate; un'interfaccia seleziona il testo tramite il codice lingua. La data corrente è letta all'avvio della CLI: per una nuova sessione dopo un cambio di giorno riavviare il processo. Nessun modello viene scaricato automaticamente. Il nome del modello è configurabile; qualità dell'estrazione e rispetto delle istruzioni vanno valutati sul modello scelto.
 
 In VS Code selezionare `backend/.venv/bin/python` come interprete. I percorsi per Pylance e pytest sono già configurati.
 
@@ -36,21 +36,38 @@ In VS Code selezionare `backend/.venv/bin/python` come interprete. I percorsi pe
 ```mermaid
 flowchart LR
     A["Messaggio + bozza + ultima domanda"] --> B["Provider LLM"]
-    B --> C["Tool call: update_event_draft"]
-    C --> D["Validazione Python e applicazione patch"]
+    B --> C["Scelta di un tool disponibile"]
+    C --> D["Registro valida e invoca il gestore"]
     D --> E{"Dati sufficienti?"}
     E -->|No| F["Domanda di chiarimento"]
     E -->|Sì| G["Bozza pronta alla revisione"]
 ```
 
 - `backend/src/kairos/models/event.py`: dati e vincoli di base.
-- `backend/src/kairos/workflow.py`: stato, contratto del tool, applicazione degli aggiornamenti e scelta del prossimo passo.
+- `backend/src/kairos/contracts.py`: contratti condivisi di stato, contesto, chiamate e risultati.
+- `backend/src/kairos/workflow.py`: avanzamento della conversazione e scelta del prossimo passo.
+- `backend/src/kairos/tools.py`: registro, schemi tipizzati, disponibilità e gestori dei tool.
+- `backend/src/kairos/i18n.py` e `locales/messages.json`: lingue e messaggi completi, validati all'avvio.
 - `backend/src/kairos/providers.py`: prompt e adattatore HTTP Ollama; provider simulato per test e demo.
 - `backend/src/kairos/__main__.py`: CLI dimostrativa.
 
 Ogni turno fa al massimo una richiesta al modello e accetta esattamente una tool call autorizzata. Python valida gli argomenti prima di applicarli; campi omessi preservano i dati esistenti e `null` cancella i campi facoltativi. Le liste fornite sostituiscono la lista precedente: il modello riceve quella corrente e deve conservarne gli elementi non rimossi dall'utente. `reminders=null` richiede una scelta; `[]` significa nessun promemoria.
 
 Il workflow mantiene la bozza e l'ultima domanda, non una memoria completa della conversazione. Input storici non strutturati non sono recuperabili. Il risultato del tool diventa direttamente lo stato mostrato all'utente: non serve una seconda chiamata al modello per scrivere una frase di conferma.
+
+### Registro dei tool
+
+Il modello può scegliere `update_event_draft` per aggiornare dati oppure `ask_event_clarification` per chiedere un chiarimento senza modificare i campi dell'evento. Il registro espone solo i tool disponibili nello stato corrente e ricontrolla la disponibilità prima dell'esecuzione. Ogni definizione associa nome, descrizione per il modello, schema Pydantic e gestore Python; nomi duplicati, tool sconosciuti e argomenti invalidi sono rifiutati.
+
+Il limite di una chiamata per turno è indipendente dal numero di tool fra cui scegliere. Aggiungere un tool significa registrare una nuova capacità con argomenti, gestore e regole di disponibilità; azioni esterne richiederanno anche autorizzazioni, conferme e gestione degli effetti, non ancora implementate. Il registro attuale è specifico del workflow evento e non è un motore universale per ogni futuro agente.
+
+### Contratto multilingua
+
+`Language` dichiara le lingue supportate. `MessageId` dichiara tutti i messaggi dell'applicazione: domande predefinite, errori applicativi e testi della CLI. Il catalogo JSON usa le sigle come chiavi. All'avvio sono rifiutati messaggi mancanti o sconosciuti, traduzioni mancanti, lingue non supportate e testi vuoti. Aggiungere una lingua richiede completare il catalogo, senza cambiare rami condizionali nel workflow.
+
+Anche le domande generate dal modello devono rispettare `LocalizedText`: lo schema inviato al LLM richiede tutte le lingue supportate e Python verifica lo stesso contratto. `state.question` è quindi un dizionario multilingua; `state.question.text(context.language)` seleziona il testo da mostrare. Il modello produce più testo rispetto a una risposta in una sola lingua: è un costo esplicito di questo contratto. La validazione verifica copertura e struttura, non la correttezza semantica delle traduzioni.
+
+Titoli e descrizioni forniti dall'utente restano dati originali e non vengono tradotti automaticamente. Identificatori di stato/tool, prompt interni, diagnostica degli strumenti e messaggi standard di argparse non sono testi dell'interfaccia applicativa.
 
 ## Confini e verifiche
 
