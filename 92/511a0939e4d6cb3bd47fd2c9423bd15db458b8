@@ -1,0 +1,42 @@
+docs/working/product-proposals.md
+  s_1a155232b304c5::t_4d9ccc7094509d 1-80
+docs/development/first-workflow.md
+  s_1a155232b304c5::t_4d9ccc7094509d 1-57
+.gitignore
+  s_1a155232b304c5::t_ecee836cfd2eed 1-7
+README.md
+  s_1a155232b304c5::t_7129c1e01c410d 1-6,10-60,63-64
+  s_1a155232b304c5::t_fc68c8fdf91f2c 61-62
+  s_1a155232b304c5::t_8f195611102488 7-9
+  s_1a155232b304c5::t_7b3720b16786af 65,71-87
+  s_1a155232b304c5::t_4d9ccc7094509d 66-70
+scripts/build_functional_document.py
+  s_1a155232b304c5::t_01f58d129d7bd9 34-36,91,99,110-111,125-126,137-139,167-169,186-188,205
+  s_1a155232b304c5::t_d1fcdfe9a56098 189
+  s_1a155232b304c5::t_2d85ec119719ce 1-33,37-90,92-98,100-109,112-124,127-136,140-166,170-185,190-204,206-209
+.vscode/settings.json
+  s_1a155232b304c5::t_af93ef9d8786ab 1-8
+docs/working/ideas.md
+  s_1a155232b304c5::t_4d9ccc7094509d 1-87
+docs/working/functional-requirements.md
+  s_1a155232b304c5::t_4d9ccc7094509d 1-94
+docs/working/team.md
+  s_1a155232b304c5::t_7b3720b16786af 24-27
+  s_1a155232b304c5::t_4d9ccc7094509d 1-23,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "92511a0939e4d6cb3bd47fd2c9423bd15db458b8",
+  "prompts": {},
+  "sessions": {
+    "s_1a155232b304c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16ec3-ba62-7f53-a8b2-4a9d1fcdab0b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
