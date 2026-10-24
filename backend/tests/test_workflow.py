@@ -4,9 +4,10 @@ from datetime import datetime
 import pytest
 
 from kairos.models.event import EventDraft
+from kairos.i18n import LocalizedText
 from kairos.providers import ScriptedEventProvider
-from kairos.workflow import (
-    EventWorkflow,
+from kairos.workflow import EventWorkflow
+from kairos.contracts import (
     EventWorkflowState,
     RequestContext,
     ToolCall,
@@ -42,7 +43,7 @@ def test_followup_preserves_event_and_tasks_and_asks_for_reminders():
     workflow = EventWorkflow(provider)
     first = advance(workflow, EventWorkflowState())
     assert first.status == "collecting"
-    assert "promemoria" in first.question
+    assert "promemoria" in first.question.text("it")
     second = advance(workflow, first, "Un'ora e un giorno prima")
     assert second.status == "ready_for_review"
     assert second.draft.title == "Visita"
@@ -89,11 +90,11 @@ def test_unknown_tool_is_never_executed():
 
 def test_ambiguity_blocks_ready_even_when_fields_are_complete():
     workflow = EventWorkflow(ScriptedEventProvider([
-        call(event_fields(reminders=[]), clarification="Intendi il 2026 o il 2027?")
+        call(event_fields(reminders=[]), clarification={"it": "Intendi il 2026 o il 2027?", "en": "Do you mean 2026 or 2027?"})
     ]))
     state = advance(workflow, EventWorkflowState())
     assert state.status == "collecting"
-    assert state.question == "Intendi il 2026 o il 2027?"
+    assert state.question.text("it") == "Intendi il 2026 o il 2027?"
 
 
 @pytest.mark.parametrize("start", [
@@ -121,13 +122,13 @@ def test_invalid_zone_is_not_ready():
     ]))
     state = advance(workflow, EventWorkflowState())
     assert state.status == "collecting"
-    assert "fuso" in state.question
+    assert "fuso" in state.question.text("it")
 
 
 def test_language_changes_question_not_time_zone():
     workflow = EventWorkflow(ScriptedEventProvider([call(event_fields())]))
     state = advance(workflow, EventWorkflowState(), language="en")
-    assert state.question.startswith("When")
+    assert state.question.text("en").startswith("When")
     assert state.draft.timezone == "Europe/Rome"
 
 
@@ -150,13 +151,13 @@ def test_turn_limit_prevents_another_model_request():
 
 def test_short_answer_has_previous_question_and_draft_available():
     class InspectingProvider:
-        async def propose(self, message, state, context):
+        async def propose(self, message, state, context, tools):
             assert message == "Un'ora prima"
-            assert "promemoria" in state.question
+            assert "promemoria" in state.question.text("it")
             assert state.draft.title == "Visita"
             return call({"reminders": [{"minutes_before": 60}]})
 
     original = EventWorkflowState(
-        draft=EventDraft.model_validate(event_fields()), question="Quando vuoi il promemoria?"
+        draft=EventDraft.model_validate(event_fields()), question=LocalizedText({"it": "Quando vuoi il promemoria?", "en": "When would you like a reminder?"})
     )
     assert advance(EventWorkflow(InspectingProvider()), original, "Un'ora prima").status == "ready_for_review"
