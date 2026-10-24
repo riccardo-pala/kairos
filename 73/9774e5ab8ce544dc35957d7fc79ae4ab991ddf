@@ -1,0 +1,25 @@
+README.md
+  s_1a155232b304c5::t_c7e4d53057ec12 30,39-40,47-50,58-70
+  s_1a155232b304c5::t_49d8bddc10b81b 71
+docs/development/first-workflow.md
+  s_1a155232b304c5::t_c7e4d53057ec12 41-42
+docs/working/ideas.md
+  s_1a155232b304c5::t_1e4df4a3334b93 38-46,55,79,81
+  s_1a155232b304c5::t_dac1dac427aa33 20-21,76-78,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "739774e5ab8ce544dc35957d7fc79ae4ab991ddf",
+  "prompts": {},
+  "sessions": {
+    "s_1a155232b304c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16ec3-ba62-7f53-a8b2-4a9d1fcdab0b",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
