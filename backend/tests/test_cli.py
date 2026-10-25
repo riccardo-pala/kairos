@@ -21,12 +21,67 @@ def test_demo_uses_selected_language_without_contacting_a_model(
     assert expected_intro in output
     assert expected_title in output
     assert "pronta per la revisione" in output or "ready for review" in output
+    assert "Dati della bozza:" in output or "Draft details:" in output
+    assert '"title"' not in output
+    assert '"reminders"' not in output
+
+
+@pytest.mark.parametrize("language,expected_debug_help", [
+    ("it", "Mostra anche lo stato JSON"),
+    ("en", "Also print the draft state as JSON"),
+])
+def test_debug_flag_prints_json_and_help_is_localized(
+    monkeypatch, capsys, language, expected_debug_help
+):
+    monkeypatch.setattr(sys, "argv", ["kairos", "--language", language, "--debug"])
+    main()
+    output = capsys.readouterr().out
     assert '"title"' in output
     assert '"reminders"' in output
 
+    monkeypatch.setattr(sys, "argv", ["kairos", "--language", language, "--help"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert expected_debug_help in capsys.readouterr().out
 
-def test_interactive_cli_flushes_provisional_text_and_keeps_state_after_late_error(
-    monkeypatch, capsys
+
+@pytest.mark.parametrize("language,think_flag,expected_think,expected_help", [
+    ("it", [], False, "Abilita il ragionamento interno"),
+    ("en", ["--think"], True, "Enable model reasoning generation"),
+])
+def test_interactive_cli_sets_thinking_only_from_flag_and_localizes_help(
+    monkeypatch, capsys, language, think_flag, expected_think, expected_help
+):
+    import kairos.__main__ as cli
+
+    observed = []
+
+    class ProviderSpy:
+        def __init__(self, model, client, *, think):
+            observed.append(think)
+
+    class WorkflowStub:
+        def __init__(self, provider):
+            pass
+
+    monkeypatch.setattr(sys, "argv", ["kairos", "--model", "test-model", "--language", language, *think_flag])
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "/exit")
+    monkeypatch.setattr(cli, "OllamaEventProvider", ProviderSpy)
+    monkeypatch.setattr(cli, "EventWorkflow", WorkflowStub)
+    main()
+    assert observed == [expected_think]
+
+    monkeypatch.setattr(sys, "argv", ["kairos", "--language", language, "--help"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert expected_help in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("debug", [False, True])
+def test_interactive_cli_hides_model_text_unless_debug_and_keeps_state_after_late_error(
+    monkeypatch, capsys, debug
 ):
     import kairos.__main__ as cli
 
@@ -43,22 +98,31 @@ def test_interactive_cli_flushes_provisional_text_and_keeps_state_after_late_err
                 yield WorkflowEvent(kind="progress", message="Preparing")
                 yield WorkflowEvent(kind="text", text="Provisional text")
                 observed["intermediate"] = capsys.readouterr().out
-                raise WorkflowError(MessageId.MODEL_UNAVAILABLE)
+                raise WorkflowError(MessageId.TOOL_COUNT)
             if message == "second":
                 observed["second_state"] = state.model_copy(deep=True)
                 yield WorkflowEvent(
                     kind="completed",
-                    state=EventWorkflowState(question="When?", conversation_language="en"),
+                    state=EventWorkflowState(
+                        draft={"title": "Motorcycle service"},
+                        question="When?",
+                        conversation_language="en",
+                    ),
                 )
 
     inputs = iter(["first", "second", "/exit"])
-    monkeypatch.setattr(sys, "argv", ["kairos", "--model", "test-model"])
+    args = ["kairos", "--model", "test-model"] + (["--debug"] if debug else [])
+    monkeypatch.setattr(sys, "argv", args)
     monkeypatch.setattr(builtins, "input", lambda prompt="": next(inputs))
     monkeypatch.setattr(cli, "EventWorkflow", MockWorkflow)
     main()
 
-    assert "Provisional text" in observed["intermediate"]
+    assert ("Provisional text" in observed["intermediate"]) is debug
     assert observed["second_state"] == initial
     output = capsys.readouterr().out
-    assert "Il modello non è disponibile" in output
+    assert "esattamente una chiamata" in output
     assert "When?" in output
+    assert "Dati della bozza:" in output
+    assert "Motorcycle service" in output
+    assert ('"title"' in output) is debug
+    assert "thinking" not in output
