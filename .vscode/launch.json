@@ -15,7 +15,11 @@
       "args": [
         "--model", "qwen3:8b",
         "--language", "it",
-        "--timezone", "Europe/Rome"
+        "--timezone", "Europe/Rome",
+        "--think",
+        "--debug-draft-json",
+        "--debug-model-io",
+        "--debug-validation"
       ]
     }
   ]
