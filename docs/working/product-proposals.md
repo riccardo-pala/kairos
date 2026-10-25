@@ -29,7 +29,7 @@ Queste proposte traducono le idee raccolte in `docs/working/ideas.md` in esperim
 - **Ruolo del LLM:** se richiesto, aiutare a formulare un passo più piccolo o una motivazione pratica, senza interpretare stati mentali. Le opzioni, i rinvii e la modifica dell’attività sono gestiti dall’app.
 - **Rischi da verificare:** far sentire l’utente monitorato o in colpa; formulazioni che sembrano diagnosi; raccogliere più dati del necessario.
 
-## Flussi e implicazioni per la POC — proposte da valutare
+## Flussi e implicazioni per la POC
 
 Il focus attuale è il flusso di eventi, attività e promemoria come base per facilitare un’azione concreta. Un’agenda, da sola, non dimostra né garantisce che la procrastinazione venga superata. Le indicazioni seguenti descrivono un possibile flusso da discutere, non una specifica approvata.
 
@@ -57,9 +57,13 @@ Se non emerge un legame chiaro tra ostacolo e azione facilitata, la funzione pu�
 
 Pulsanti e componenti interattivi dentro l’app possono offrire azioni rapide e avvio vocale. I widget della schermata Home Android sono esclusi per ora. Un onboarding con tag o selezioni è un’opzione da valutare, mantenendo facoltativo il testo.
 
-### Supporto italiano e inglese
+### Lingua, streaming e messaggi di progresso — decisione del 25 ottobre 2026
 
-Come implicazione proposta del requisito multilingua, le stringhe statiche dell’interfaccia dovrebbero essere disponibili in italiano e inglese. Kairos dovrebbe comprendere richieste e formulare risposte in entrambe le lingue mantenendo gli stessi flussi e guardrail. La lingua non deve alterare l’interpretazione di date, numeri o fusi orari: questi valori vanno analizzati e validati secondo regole esplicite, anche quando la richiesta mescola lingua e formati. La strategia tecnica per traduzioni, rilevamento o scelta della lingua e supporto LLM resta da decidere.
+Per backend e CLI, le stringhe statiche restano complete in italiano e inglese e seguono la lingua dell’interfaccia. Chiarimenti e testo LLM usano una sola lingua conversazionale per turno, senza agente o chiamata aggiuntiva. La preferenza iniziale deriva dal contesto; saluti chiaramente riconosciuti possono indicare una lingua, mentre input brevi, ambigui o neutri come “ok”, date e numeri mantengono la lingua precedente. Un cambio esplicito in italiano o inglese prevale; anche un messaggio successivo sostanziale in una di queste lingue può cambiare la lingua del turno. Se la lingua della chat non è supportata, l’inglese diventa il default della chat nella chiamata LLM già prevista, senza rilevamento separato. Implementato e verificato con simulazioni, incluso mock HTTP; il comportamento con un modello reale non è stato provato.
+
+Lo streaming del testo è opzionale e separato dalle tool call. Gli argomenti vengono raccolti e validati prima dell’esecuzione; la CLI presenta la bozza validata e non espone JSON parziali o reasoning. I messaggi di progresso sono prodotti dal codice, statici nella lingua UI e descrivono soltanto fasi reali osservabili, senza timer, pensieri del modello o chiamate LLM aggiuntive. L’implementazione è verificata con provider simulato; il comportamento e la scelta linguistica di un modello reale restano da verificare. API, app mobile, persistenza e notifiche non fanno parte di questa decisione.
+
+La lingua non deve alterare l’interpretazione di date, numeri o fusi orari: questi valori vanno analizzati e validati secondo regole esplicite, anche quando la richiesta mescola lingua e formati.
 
 Come proposta per v1, le informazioni di profilo salvate dovrebbero essere essenziali, esplicite, modificabili e cancellabili. Vanno mostrate e gestite separatamente dalla cronologia delle conversazioni e dalle inferenze del modello; un’inferenza non confermata non diventa un fatto di profilo. Servono limiti chiari su quali strumenti l’assistente può invocare, validazione deterministica dei parametri, protezione dei dati in memoria e gestione degli input che tentano di sovrascrivere le istruzioni. La conferma dell’utente dovrebbe essere proporzionata all’effetto: revisione prima di creare o cambiare impegni, conferma esplicita per azioni esterne o difficili da annullare.
 
@@ -77,4 +81,3 @@ Prima di definire l’MVP vanno decisi il trattamento dei dati in locale o nel c
 - Come si gestiscono fuso orario, orari ambigui e permessi di notifica nel flusso scelto?
 - Quali dati di profilo l’utente può salvare esplicitamente, e come vedere, modificare o cancellare tali dati?
 - Quali componenti interattivi nell’app e azioni rapide hanno valore sufficiente per la prima versione?
-- Come scegliere o rilevare la lingua della conversazione, e deve seguire la lingua dell’interfaccia?
