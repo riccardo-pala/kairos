@@ -40,6 +40,8 @@ Ideas do not automatically activate agents or update every document. When consol
 
 Project documentation is organized by reader purpose: `docs/usage/` explains how to start and use the module; `docs/functional/` contains the single Markdown requirements source, the derived Word copy, product proposals, and decision log; `docs/technology/` contains architecture, evaluation, and development workflow.
 
+Keep each document focused on its audience. Put conversational history, internal rationale, discarded ideas, and unresolved product decisions only in `docs/functional/decision-log.md`; describe their resulting behavior or current status in other documents without repeating the discussion. Put startup commands in the usage guide that covers the relevant service, and link to them from the README instead of duplicating them.
+
 The Word requirements document is generated from `docs/functional/requirements.md` by `scripts/build_functional_document.py`. Regenerate and visually verify it for substantive revisions, not every note. Any functional edits made directly in Word must be copied back to the Markdown source before regenerating.
 
 Project documents preserve decisions beyond an agent's lifetime. New sessions should retrieve only the context needed and activate roles as required, following this lightweight model.

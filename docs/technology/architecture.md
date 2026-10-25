@@ -7,14 +7,16 @@ The Python backend turns one user message into a validated event-draft update. T
 | Component | Role |
 | --- | --- |
 | Python 3.13 | Backend runtime and workflow orchestration |
-| Pydantic 2 | Validates request, state, tool arguments, and event data |
+| Pydantic 2 | Validates request, stored state, tool arguments, and event data |
 | FastAPI and Uvicorn | HTTP application and local ASGI server |
 | httpx | Asynchronous HTTP client for Ollama |
+| PostgreSQL and Psycopg 3 | Stores session language, timezone, and current workflow state as JSONB |
+| Docker Compose | Runs the API and PostgreSQL on localhost with a persistent database volume |
 | Ollama | Optional local model provider with tool calling and NDJSON streaming |
 | `uv` | Dependency and lockfile management |
 | pytest | Backend test runner |
 
-Important source files are under `backend/src/kairos/`: `models/event.py` contains event constraints; `contracts.py` defines shared workflow contracts; `workflow.py` controls each drafting turn; `tools.py` defines tool schemas and handlers; `providers.py` contains the prompt and Ollama adapter; `api.py` adapts the workflow to HTTP/SSE; `__main__.py` provides the CLI; `i18n.py` and `locales/messages.json` define the supported languages and static messages.
+Important source files are under `backend/src/kairos/`: `models/event.py` contains event constraints; `contracts.py` defines shared workflow contracts; `workflow.py` controls each drafting turn; `tools.py` defines tool schemas and handlers; `providers.py` contains the prompt and Ollama adapter; `api.py` adapts sessions and workflow events to HTTP/SSE; `session_store.py` persists session records; `__main__.py` provides the CLI; `i18n.py` and `locales/messages.json` define the supported languages and static messages. The explicit SQL migration is `backend/migrations/001_create_sessions.sql`.
 
 ## Workflow
 
@@ -40,11 +42,13 @@ The main event action belongs in the title. Separate before/after activities are
 
 Date, local time, and IANA timezone are separate values. Missing time is not represented as midnight. Nonexistent or ambiguous local times, inconsistent UTC offsets, and dates that cannot be resolved safely require clarification. Relative dates use the request context's server-side `now` and timezone.
 
-## HTTP and streaming API
+## HTTP, sessions, and streaming
 
-`api.py` exposes `GET /health` and `POST /workflow/turn`. Each turn is stateless: the client sends the current `EventWorkflowState`, and the API returns the updated state in an SSE `completed` event. This avoids a server-side session store or database at this stage. The request's timezone and interface language form a `RequestContext`; `now` is created by the server in that timezone. Invalid request bodies and timezones are rejected before streaming starts.
+`api.py` exposes `GET /health`, `POST /sessions`, `GET /sessions/{id}`, and `POST /sessions/{id}/turn`. Session creation stores a UUID, interface language, IANA timezone, initial `EventWorkflowState` JSONB, and database timestamps. Each turn loads the latest state by session ID; the client no longer sends the state. No conversation transcript is stored or sent to the model: the provider receives only the current message, current draft, and existing previous question.
 
-The API translates workflow events into separate SSE names: `progress`, optional `text`, `completed`, and `error`. A shared `httpx.AsyncClient` is created in FastAPI's lifespan when an Ollama model is configured and closed at shutdown. `KAIROS_OLLAMA_MODEL` selects the model; `KAIROS_OLLAMA_BASE_URL` optionally changes the Ollama endpoint. Without a model configuration, a deterministic scripted provider supports a basic API demonstration and does not interpret arbitrary user messages.
+The turn endpoint translates workflow events into SSE names `progress`, optional `text`, `completed`, and `error`. A `completed` event is sent only after the new `EventWorkflowState` has been committed to PostgreSQL. Updates use the previously read `updated_at` as an optimistic concurrency check, so overlapping turns cannot silently overwrite each other's state. A shared `httpx.AsyncClient` and a Psycopg async connection pool are created in the FastAPI lifespan and closed at shutdown. The SQL migration runner applies checked-in migrations at startup. `KAIROS_OLLAMA_MODEL` selects the model and `KAIROS_OLLAMA_BASE_URL` optionally changes the Ollama endpoint. Without a model configuration, a deterministic scripted provider supports a basic API demonstration and does not interpret arbitrary user messages.
+
+`KAIROS_DATABASE_URL` configures the PostgreSQL connection; its local default is `postgresql://kairos:kairos-local@localhost:5432/kairos`. Docker Compose uses the database service hostname and a named volume. Both API and database ports bind to localhost. The prototype has no authentication or retention policy and is not ready for Internet exposure; retention and account-level authorization remain out of scope.
 
 ## Language behavior
 
@@ -56,4 +60,4 @@ The runtime uses the baseline prompt. A single local comparison against a compac
 
 ## Current boundaries
 
-The backend prepares drafts only. It has no database, server-side conversation persistence, authentication, calendar integration, notification delivery, voice input, or mobile UI. The API and CLI are prototype interfaces. Model output remains a proposal that must pass deterministic validation and user review before any future external action.
+The backend prepares drafts only. It persists the current session state, but not a chat transcript. It has no authentication, calendar integration, notification delivery, voice input, or mobile UI. The API and CLI are local prototype interfaces bound to localhost by the Compose configuration; the API is not ready for Internet exposure. There is no retention policy yet. Model output remains a proposal that must pass deterministic validation and user review before any future external action.

@@ -1,6 +1,6 @@
 # Kairos product proposals
 
-These proposals turn ideas in the [decision log](decision-log.md) into experiments for discussion. The functional proposals below are hypotheses unless explicitly marked as decisions. The reference is helping people who procrastinate act at the right moment. Android is the first context to consider; iOS and web remain open.
+These proposals outline possible experiments for Kairos. They are hypotheses unless explicitly marked as decisions. The reference is helping people who procrastinate act at the right moment. Android is the first context to consider; iOS and web remain open.
 
 ## 1. From a list to a first step
 
@@ -36,10 +36,6 @@ The current focus is the event flow and its related activities and reminders, as
 From voice or text, Kairos could show an editable summary with the event and any supplied location or duration, related before-or-after activities, and requested reminders. Transcribed voice and typed text should enter the same interpretation and review flow. If reminder timing is missing, the assistant asks; it clarifies only ambiguity or necessary data, such as a missing year or timezone when relevant, or which event an activity refers to. It does not invent missing values; the user reviews the summary before creation.
 
 Activities, events, and reminders are distinct objects: a before/after activity describes something to do, while a reminder specifies when to notify. An event may have multiple configurable reminders. Scheduling, date/time validation, and recording choices are deterministic; the LLM interprets the request and proposes a structure that the user can correct.
-
-## Explicit decision: grocery list outside the first proof of concept
-
-The grocery list is excluded from the first proof of concept. Keep the idea for later and reconsider it only if it fits the procrastination-support focus without adding unrelated features. If revisited, it could create an editable list from a recipe, distinguishing recurring items from one-time purchases. Recurrence does not authorize automatic ordering, purchasing, or restocking.
 
 ## Proposed filter for new features
 

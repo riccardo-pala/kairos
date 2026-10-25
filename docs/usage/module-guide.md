@@ -1,6 +1,6 @@
 # Start and use the Kairos backend
 
-This guide covers the Python backend and its local CLI and HTTP API. The API prepares event drafts only; it does not save events or schedule notifications.
+This guide covers the Python backend and its local CLI and HTTP API. The API prepares event drafts only; it does not create calendar events or schedule notifications.
 
 ## Requirements and setup
 
@@ -29,33 +29,27 @@ uv run python -m kairos --model qwen3:8b --language it --timezone Europe/Rome
 
 Use `--language en` for English interface messages, `--think` to enable model reasoning generation (reasoning is not displayed), and `/exit` to end the session. The available debug options are `--debug-model-io`, `--debug-draft-json`, and `--debug-validation`; `--debug` enables all three. Model input/output and validation diagnostics go to stderr; draft JSON goes to stdout. Debug output may contain user messages and prompt data.
 
-## Start the HTTP API
+## Use the HTTP API
 
-Run the local server from `backend/`:
+Start the API and its PostgreSQL database by following the [local infrastructure setup](local-infrastructure.md). The API uses a deterministic demo provider unless `KAIROS_OLLAMA_MODEL` is configured; the demo provider does not interpret arbitrary text.
 
-```bash
-uv run uvicorn kairos.api:app --reload --host 127.0.0.1 --port 8000
-```
-
-Without `KAIROS_OLLAMA_MODEL`, the API uses a deterministic demo provider. It does not interpret arbitrary text. To connect an installed Ollama model, configure:
+`GET /health` checks the database connection. `POST /sessions` creates a UUID session and stores the selected interface language and IANA timezone:
 
 ```bash
-export KAIROS_OLLAMA_MODEL=qwen3:8b
-export KAIROS_OLLAMA_BASE_URL=http://localhost:11434
-uv run uvicorn kairos.api:app --reload --host 127.0.0.1 --port 8000
-```
-
-`KAIROS_OLLAMA_BASE_URL` is optional and defaults to `http://localhost:11434`.
-
-The liveness endpoint is `GET /health`. The drafting endpoint is `POST /workflow/turn`. A first request can omit `state`:
-
-```bash
-curl -N http://127.0.0.1:8000/workflow/turn \
+curl -s http://127.0.0.1:8000/sessions \
   -H 'Content-Type: application/json' \
-  -d '{"message":"I need to take my motorcycle to the mechanic tomorrow","language":"en","timezone":"Europe/Rome"}'
+  -d '{"language":"en","timezone":"Europe/Rome"}'
 ```
 
-The endpoint responds as Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` carries the updated state, and `error` reports a workflow error. The client must keep the state from `completed` and send it in the next request. Omitting `state` starts a new draft. The server creates the current timestamp using the supplied IANA timezone; the client supplies the interface language and timezone. The HTTP client for Ollama is opened at application startup and closed at shutdown.
+Use the returned `id` to send a turn. The client sends only the current message; it does not send `EventWorkflowState`:
+
+```bash
+curl -N http://127.0.0.1:8000/sessions/SESSION_UUID/turn \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"I need to take my motorcycle to the mechanic tomorrow"}'
+```
+
+The response is Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` contains the persisted session and updated draft, and `error` reports a workflow or concurrency error. A completed state is committed before its SSE event is sent. `GET /sessions/SESSION_UUID` reads the current draft and session metadata. Only the current state is stored; chat messages and transcript history are not saved or sent to the model. The model receives the current user message, draft, and previous question.
 
 The local OpenAPI page is available at `http://127.0.0.1:8000/docs`.
 
