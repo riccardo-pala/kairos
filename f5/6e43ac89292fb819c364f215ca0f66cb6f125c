@@ -1,0 +1,42 @@
+docs/working/ideas.md
+  s_bff12bdde01e92::t_b58ca766915053 80
+  s_bff12bdde01e92::t_1897a40bafa0e5 40-41,45
+  s_bff12bdde01e92::t_f1105b58b9126c 42,92
+  s_bff12bdde01e92::t_0510a2f9b45aa2 38,43-44,46,48,82,84
+docs/working/functional-requirements.md
+  s_bff12bdde01e92::t_8cc9d5dcc21d1c 83-86
+  s_bff12bdde01e92::t_64ec81b909394e 49
+  s_bff12bdde01e92::t_677795d40628a5 3,9,26,44,50,61,73,93
+  s_bff12bdde01e92::t_618d6ac15b4cc1 51
+docs/working/product-proposals.md
+  s_bff12bdde01e92::t_3d1983e9fc2aac 62
+  s_bff12bdde01e92::t_2a69a5e2336fcc 64
+  s_bff12bdde01e92::t_fedac5d5ae5479 32,60,65-66
+  s_bff12bdde01e92::t_6fdc89834f34d8 63
+docs/development/first-workflow.md
+  s_bff12bdde01e92::t_31adea94ebe49c 43
+  s_bff12bdde01e92::t_5294bd34b28058 42
+  s_bff12bdde01e92::t_cc0f02bb483abe 41
+README.md
+  s_bff12bdde01e92::t_6282ed4b35774f 70
+  s_bff12bdde01e92::t_b61f921e53e610 54,56
+  s_bff12bdde01e92::t_14c91f81cb95a3 58
+  s_bff12bdde01e92::t_c2bc6f9fe6fb47 30
+  s_bff12bdde01e92::t_333ffa1cae8ccf 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f56e43ac89292fb819c364f215ca0f66cb6f125c",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
