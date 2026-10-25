@@ -3,6 +3,8 @@
 import argparse
 import asyncio
 from datetime import datetime
+import os
+import sys
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -13,46 +15,80 @@ from kairos.i18n import Language, MessageId, translate
 from kairos.workflow import EventWorkflow
 
 
+def _debug_style(value: str, ansi: str, enabled: bool) -> str:
+    return f"\033[{ansi}m{value}\033[0m" if enabled else value
+
+
+def _model_io_trace(direction: str, content: str, language: Language) -> None:
+    color = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+    message_id = (
+        MessageId.CLI_DEBUG_MODEL_REQUEST
+        if direction == "request"
+        else MessageId.CLI_DEBUG_MODEL_RESPONSE
+    )
+    heading = translate(message_id, language)
+    print(_debug_style(f"[{heading}]", "1;35", color), file=sys.stderr, flush=True)
+    print(content, file=sys.stderr, flush=True)
+
+
 def print_draft(state: EventWorkflowState, language: Language, *, debug: bool = False) -> None:
     draft = state.draft
-    print(translate(MessageId.CLI_DRAFT_SUMMARY, language))
+    color_summary = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+
+    def emit_field(label: str, value: str, indent: int = 2) -> None:
+        prefix = " " * indent
+        label = _debug_style(label, "1;33", color_summary)
+        value = _debug_style(value, "97", color_summary)
+        print(f"{prefix}{label}: {value}")
+
+    summary = translate(MessageId.CLI_DRAFT_SUMMARY, language)
+    print(_debug_style(summary, "1;36", color_summary))
     if draft.title:
-        print(f"  {translate(MessageId.CLI_EVENT_TITLE, language)}: {draft.title}")
+        emit_field(translate(MessageId.CLI_EVENT_TITLE, language), draft.title)
     if draft.start_date:
-        print(f"  {translate(MessageId.CLI_EVENT_DATE, language)}: {draft.start_date.isoformat()}")
+        emit_field(translate(MessageId.CLI_EVENT_DATE, language), draft.start_date.isoformat())
     if draft.start_time:
-        print(f"  {translate(MessageId.CLI_EVENT_TIME, language)}: {draft.start_time.isoformat(timespec='minutes')}")
+        emit_field(translate(MessageId.CLI_EVENT_TIME, language), draft.start_time.isoformat(timespec="minutes"))
     if draft.timezone:
-        print(f"  {translate(MessageId.CLI_EVENT_TIMEZONE, language)}: {draft.timezone}")
+        emit_field(translate(MessageId.CLI_EVENT_TIMEZONE, language), draft.timezone)
     if draft.location:
-        print(f"  {translate(MessageId.CLI_EVENT_LOCATION, language)}: {draft.location}")
+        emit_field(translate(MessageId.CLI_EVENT_LOCATION, language), draft.location)
     if draft.duration_minutes is not None:
         minutes = translate(MessageId.CLI_MINUTES, language).format(
             value=draft.duration_minutes
         )
-        print(f"  {translate(MessageId.CLI_EVENT_DURATION, language)}: {minutes}")
+        emit_field(translate(MessageId.CLI_EVENT_DURATION, language), minutes)
     if draft.tasks:
-        print(f"  {translate(MessageId.CLI_EVENT_TASKS, language)}:")
+        task_label = _debug_style(translate(MessageId.CLI_EVENT_TASKS, language), "1;34", color_summary)
+        print(f"  {task_label}:")
         for task in draft.tasks:
             timing = translate(
                 MessageId.CLI_TASK_BEFORE if task.timing == "before" else MessageId.CLI_TASK_AFTER,
                 language,
             )
-            print(f"    - {task.description} ({timing})")
+            description = _debug_style(task.description, "97", color_summary)
+            timing = _debug_style(timing, "90", color_summary)
+            print(f"    - {description} ({timing})")
     if draft.reminders is not None:
         label = translate(MessageId.CLI_EVENT_REMINDERS, language)
         if not draft.reminders:
-            print(f"  {label}: {translate(MessageId.CLI_NO_REMINDERS, language)}")
+            emit_field(label, translate(MessageId.CLI_NO_REMINDERS, language))
         else:
+            label = _debug_style(label, "1;34", color_summary)
             print(f"  {label}:")
             for reminder in draft.reminders:
                 minutes = translate(MessageId.CLI_MINUTES, language).format(
                     value=reminder.minutes_before
                 )
                 before = translate(MessageId.CLI_TASK_BEFORE, language)
+                minutes = _debug_style(minutes, "97", color_summary)
+                before = _debug_style(before, "90", color_summary)
                 print(f"    - {minutes} {before}")
     if debug:
-        print(state.model_dump_json(indent=2))
+        json_label = _debug_style(translate(MessageId.CLI_DEBUG_JSON, language), "1;35", color_summary)
+        debug_json = _debug_style(state.model_dump_json(indent=2), "35", color_summary)
+        print(json_label)
+        print(debug_json)
 
 
 async def run(args):
@@ -65,40 +101,42 @@ async def run(args):
     def text(message_id):
         return translate(message_id, context.language)
 
+    debug_model_io = args.debug or args.debug_model_io
+    debug_draft_json = args.debug or args.debug_draft_json
+    debug_validation = args.debug or args.debug_validation
     async with httpx.AsyncClient(base_url="http://localhost:11434", timeout=60.0) as client:
         if args.model:
-            workflow = EventWorkflow(OllamaEventProvider(args.model, client, think=args.think))
+            def trace(direction: str, content: str) -> None:
+                _model_io_trace(direction, content, context.language)
+
+            workflow = EventWorkflow(OllamaEventProvider(
+                args.model,
+                client,
+                think=args.think,
+                model_io_callback=trace if debug_model_io else None,
+            ))
             print(text(MessageId.CLI_SESSION))
             while True:
                 message = await asyncio.to_thread(input, "> ")
                 if message == "/exit":
                     break
-                streamed_text = False
                 try:
                     async for event in workflow.stream_advance(state, message, context):
                         if event.kind == "progress":
-                            if args.debug and streamed_text:
-                                print()
-                                streamed_text = False
                             print(event.message, flush=True)
-                        elif event.kind == "text":
-                            if args.debug:
-                                print(event.text, end="", flush=True)
-                                streamed_text = True
                         elif event.kind == "completed":
                             state = event.state
-                            if args.debug and streamed_text:
-                                print()
-                                streamed_text = False
                             if state.question:
                                 print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
                             else:
                                 print(text(MessageId.CLI_READY))
-                            print_draft(state, context.language, debug=args.debug)
+                            print_draft(state, context.language, debug=debug_draft_json)
                 except WorkflowError as exc:
-                    if args.debug and streamed_text:
-                        print()
                     print(f"{text(MessageId.CLI_ERROR)}: {exc.text(context.language)}")
+                    if debug_validation and exc.__cause__ is not None:
+                        details = f"[DEBUG validation] {exc.__cause__}"
+                        color_debug = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+                        print(_debug_style(details, "35", color_debug), file=sys.stderr, flush=True)
         else:
             print(text(MessageId.CLI_DEMO))
             provider = ScriptedEventProvider([
@@ -106,7 +144,8 @@ async def run(args):
                     "title": text(MessageId.DEMO_TITLE), "start_date": "2026-10-31",
                     "start_time": "14:30",
                     "location": "Ambulatorio X", "duration_minutes": 30,
-                    "tasks": [{"description": text(MessageId.DEMO_TASK), "timing": "before"}],
+                }, "task_operations": {
+                    "add": [{"description": text(MessageId.DEMO_TASK), "timing": "before"}],
                 }}),
                 ToolCall(name="update_event_draft", arguments={"patch": {
                     "reminders": [{"minutes_before": 60}, {"minutes_before": 1440}],
@@ -120,7 +159,7 @@ async def run(args):
                     print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
                 else:
                     print(text(MessageId.CLI_READY))
-                print_draft(state, context.language, debug=args.debug)
+                print_draft(state, context.language, debug=debug_draft_json)
 
 
 def main():
@@ -138,6 +177,12 @@ def main():
                         help=translate(MessageId.CLI_TIMEZONE_HELP, language))
     parser.add_argument("--debug", action="store_true",
                         help=translate(MessageId.CLI_DEBUG_HELP, language))
+    parser.add_argument("--debug-model-io", action="store_true",
+                        help=translate(MessageId.CLI_DEBUG_MODEL_IO_HELP, language))
+    parser.add_argument("--debug-draft-json", action="store_true",
+                        help=translate(MessageId.CLI_DEBUG_DRAFT_JSON_HELP, language))
+    parser.add_argument("--debug-validation", action="store_true",
+                        help=translate(MessageId.CLI_DEBUG_VALIDATION_HELP, language))
     asyncio.run(run(parser.parse_args()))
 
 

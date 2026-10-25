@@ -14,7 +14,11 @@ class EventTask(BaseModel):
 class ReminderDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    minutes_before: int = Field(ge=0, strict=True)
+    minutes_before: int = Field(
+        ge=0,
+        strict=True,
+        description="Minutes before the event start; two days before is 2880 minutes.",
+    )
 
 
 class EventDraft(BaseModel):

@@ -1,7 +1,7 @@
 """One model proposal per turn; Python owns validation and workflow state."""
 
 from collections.abc import AsyncIterator
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from kairos.contracts import (
@@ -33,6 +33,28 @@ def time_needs_clarification(draft: EventDraft) -> bool:
     return len(candidates) != 1
 
 
+def has_reminder_in_past(draft: EventDraft, now: datetime) -> bool:
+    """Whether any proposed reminder instant has already elapsed."""
+    start = draft.local_starts_at
+    if start is None or not draft.timezone or not draft.reminders:
+        return False
+    try:
+        zone = ZoneInfo(draft.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        return False  # The normal workflow will ask for a valid time zone.
+    if time_needs_clarification(draft):
+        return False  # Resolve DST/offset ambiguity before judging reminder times.
+    if start.tzinfo is not None:
+        event_instant = start.astimezone(UTC)
+    else:
+        event_instant = start.replace(tzinfo=zone).astimezone(UTC)
+    now_instant = now.astimezone(UTC)
+    return any(
+        event_instant - timedelta(minutes=reminder.minutes_before) < now_instant
+        for reminder in draft.reminders
+    )
+
+
 class EventWorkflow:
     def __init__(
         self, provider: EventProvider, max_turns: int = 20, tools: ToolRegistry | None = None
@@ -62,6 +84,8 @@ class EventWorkflow:
                 calls.append(event.tool_call)
 
         if len(calls) != 1:
+            if state.draft.reminders is None and self._next_question(state.draft) == MessageId.REMINDERS:
+                raise WorkflowError(MessageId.REMINDER_TOOL_COUNT)
             raise WorkflowError(MessageId.TOOL_COUNT)
         yield WorkflowEvent(
             kind="progress", message=translate(MessageId.PROGRESS_VALIDATE, context.language)
@@ -70,6 +94,8 @@ class EventWorkflow:
         candidate = result.draft
         if candidate.timezone is None:
             candidate.timezone = context.timezone
+        if has_reminder_in_past(candidate, context.now):
+            raise WorkflowError(MessageId.REMINDER_IN_PAST)
         language = result.conversation_language or state.conversation_language or context.language
         question = result.clarification
         if question is None:
