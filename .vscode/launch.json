@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Kairos — Ollama",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "kairos",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/src"
+      },
+      "args": [
+        "--model", "qwen3:8b",
+        "--language", "it",
+        "--timezone", "Europe/Rome"
+      ]
+    }
+  ]
+}
