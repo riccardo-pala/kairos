@@ -1,0 +1,40 @@
+README.md
+  s_bff12bdde01e92::t_9d73869a8e76e7 5-7,11-12,18
+  s_bff12bdde01e92::t_aedd937fe247dc 13,19-20
+docs/usage/local-infrastructure.md
+  s_bff12bdde01e92::t_9d73869a8e76e7 1-2,4-14,16-18,20,28,30-31,33-38
+  s_bff12bdde01e92::t_ec8d7a08703048 21-25,27
+  s_bff12bdde01e92::t_0c5f8d54d5a72a 15,19,26,29,32
+  s_bff12bdde01e92::t_dc94051003a369 3
+docs/functional/product-proposals.md
+  s_bff12bdde01e92::t_aedd937fe247dc 3
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_d7dd9ced6fe5b2 10,13-14,19,45,47,49-51,63
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_b8ae0414dcc742 3
+  s_bff12bdde01e92::t_9d73869a8e76e7 32,34
+  s_bff12bdde01e92::t_2b198aa8537cd3 36,39-41,44,47,49,52
+.gitignore
+  s_bff12bdde01e92::t_0c5f8d54d5a72a 7
+docs/functional/requirements.md
+  s_bff12bdde01e92::t_809a8b61578f39 3,11,26,31,33,35-43,45-51,55-61,67,70-71,87-90
+  s_bff12bdde01e92::t_8e7b54ad669809 9,44,68
+docs/technology/development-workflow.md
+  s_bff12bdde01e92::t_9d73869a8e76e7 43-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9b80739f3dde3e53396f9ac3ac512fe9150d2a1a",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
