@@ -1,0 +1,147 @@
+"""PostgreSQL persistence for the current draft only; no chat transcript is stored."""
+
+from pathlib import Path
+import os
+from uuid import UUID
+
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
+from pydantic import AwareDatetime, BaseModel, ConfigDict
+
+from kairos.contracts import EventWorkflowState
+from kairos.i18n import Language
+
+
+class SessionRecord(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: UUID
+    language: Language
+    timezone: str
+    state: EventWorkflowState
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+
+
+class SessionNotFound(Exception):
+    pass
+
+
+class SessionConflict(Exception):
+    """The session changed after the client turn began."""
+
+
+class SessionStore:
+    def __init__(self, pool: AsyncConnectionPool):
+        self.pool = pool
+
+    async def ping(self) -> None:
+        async with self.pool.connection() as connection:
+            cursor = await connection.execute("SELECT 1")
+            await cursor.fetchone()
+
+    async def create(
+        self, session_id: UUID, language: Language, timezone: str, state: EventWorkflowState
+    ) -> SessionRecord:
+        async with self.pool.connection() as connection:
+            async with connection.transaction():
+                cursor = await connection.execute(
+                    """
+                    INSERT INTO sessions (id, language, timezone, state)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, language, timezone, state, created_at, updated_at
+                    """,
+                    (session_id, language.value, timezone, Jsonb(state.model_dump(mode="json"))),
+                )
+                row = await cursor.fetchone()
+        return self._record(row)
+
+    async def get(self, session_id: UUID) -> SessionRecord:
+        async with self.pool.connection() as connection:
+            cursor = await connection.execute(
+                """
+                SELECT id, language, timezone, state, created_at, updated_at
+                FROM sessions WHERE id = %s
+                """,
+                (session_id,),
+            )
+            row = await cursor.fetchone()
+        if row is None:
+            raise SessionNotFound
+        return self._record(row)
+
+    async def save_state(
+        self,
+        session_id: UUID,
+        expected_updated_at: AwareDatetime,
+        state: EventWorkflowState,
+    ) -> SessionRecord:
+        """Atomically replace state only if the session has not changed meanwhile."""
+        async with self.pool.connection() as connection:
+            async with connection.transaction():
+                cursor = await connection.execute(
+                    """
+                    UPDATE sessions
+                    SET state = %s,
+                        updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
+                    WHERE id = %s AND updated_at = %s
+                    RETURNING id, language, timezone, state, created_at, updated_at
+                    """,
+                    (Jsonb(state.model_dump(mode="json")), session_id, expected_updated_at),
+                )
+                row = await cursor.fetchone()
+                if row is None:
+                    exists = await connection.execute(
+                        "SELECT 1 FROM sessions WHERE id = %s", (session_id,)
+                    )
+                    if await exists.fetchone() is None:
+                        raise SessionNotFound
+                    raise SessionConflict
+        return self._record(row)
+
+    @staticmethod
+    def _record(row: dict) -> SessionRecord:
+        values = dict(row)
+        values["state"] = EventWorkflowState.model_validate(values["state"])
+        return SessionRecord.model_validate(values)
+
+
+async def apply_migrations(pool: AsyncConnectionPool) -> None:
+    """Apply each checked-in SQL migration once, recording it transactionally."""
+    configured_dir = os.getenv("KAIROS_MIGRATIONS_DIR")
+    migration_dir = (
+        Path(configured_dir)
+        if configured_dir
+        else Path(__file__).resolve().parents[2] / "migrations"
+    )
+    migrations = sorted(migration_dir.glob("*.sql"))
+    if not migrations:
+        raise RuntimeError(f"No SQL migrations found in {migration_dir}")
+    async with pool.connection() as connection:
+        async with connection.transaction():
+            await connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+                )
+                """
+            )
+
+    for migration in migrations:
+        async with pool.connection() as connection:
+            async with connection.transaction():
+                cursor = await connection.execute(
+                    "SELECT 1 FROM schema_migrations WHERE version = %s",
+                    (migration.stem,),
+                )
+                if await cursor.fetchone() is not None:
+                    continue
+                for statement in migration.read_text(encoding="utf-8").split(";"):
+                    if statement.strip():
+                        await connection.execute(statement)
+                await connection.execute(
+                    "INSERT INTO schema_migrations (version) VALUES (%s)",
+                    (migration.stem,),
+                )

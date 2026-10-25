@@ -41,6 +41,8 @@
   "cli.debug_json": {"it": "STATO JSON DI DEBUG", "en": "DEBUG JSON STATE"},
   "api.internal_error": {"it": "Errore interno durante la preparazione della bozza.", "en": "An internal error occurred while preparing the draft."},
   "api.demo_limit": {"it": "La modalità demo non interpreta nuovi messaggi. Configura KAIROS_OLLAMA_MODEL per usare Ollama.", "en": "Demo mode does not interpret new messages. Set KAIROS_OLLAMA_MODEL to use Ollama."},
+  "api.session_conflict": {"it": "La sessione è stata aggiornata da un altro turno. Rileggila e riprova.", "en": "The session changed during another turn. Reload it and try again."},
+  "api.session_not_found": {"it": "La sessione non esiste più.", "en": "The session no longer exists."},
   "cli.think_help": {"it": "Abilita il ragionamento interno del modello (non viene mostrato)", "en": "Enable model reasoning generation (it is not displayed)"},
   "cli.draft_summary": {"it": "Dati della bozza:", "en": "Draft details:"},
   "cli.event_title": {"it": "Impegno", "en": "Event"},
