@@ -7,7 +7,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, ToolResult, WorkflowError
-from kairos.i18n import LocalizedText, MessageId
+from kairos.i18n import Language, MessageId, NonEmptyText
 from kairos.models.event import EventDraft
 
 
@@ -59,13 +59,15 @@ class UpdateEventArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     patch: EventDraft
-    clarification: LocalizedText | None = None
+    clarification: NonEmptyText | None = None
+    conversation_language: Language | None = None
 
 
 class AskClarificationArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    question: LocalizedText
+    question: NonEmptyText
+    conversation_language: Language | None = None
 
 
 def update_event_draft(
@@ -73,13 +75,21 @@ def update_event_draft(
 ) -> ToolResult:
     patch = arguments.patch.model_dump(exclude_unset=True)
     candidate = EventDraft.model_validate(state.draft.model_dump() | patch)
-    return ToolResult(draft=candidate, clarification=arguments.clarification)
+    return ToolResult(
+        draft=candidate,
+        clarification=arguments.clarification,
+        conversation_language=arguments.conversation_language,
+    )
 
 
 def ask_event_clarification(
     arguments: AskClarificationArguments, state: EventWorkflowState, context: RequestContext
 ) -> ToolResult:
-    return ToolResult(draft=state.draft, clarification=arguments.question)
+    return ToolResult(
+        draft=state.draft,
+        clarification=arguments.question,
+        conversation_language=arguments.conversation_language,
+    )
 
 
 def event_tools() -> ToolRegistry:

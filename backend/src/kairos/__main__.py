@@ -28,13 +28,33 @@ async def run(args):
             workflow = EventWorkflow(OllamaEventProvider(args.model, client))
             print(text(MessageId.CLI_SESSION))
             while True:
-                message = input("> ")
+                message = await asyncio.to_thread(input, "> ")
                 if message == "/exit":
                     break
+                streamed_text = False
                 try:
-                    state = await workflow.advance(state, message, context)
-                    print(state.model_dump_json(indent=2))
+                    async for event in workflow.stream_advance(state, message, context):
+                        if event.kind == "progress":
+                            if streamed_text:
+                                print()
+                                streamed_text = False
+                            print(event.message, flush=True)
+                        elif event.kind == "text":
+                            print(event.text, end="", flush=True)
+                            streamed_text = True
+                        elif event.kind == "completed":
+                            state = event.state
+                            if streamed_text:
+                                print()
+                                streamed_text = False
+                            if state.question:
+                                print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
+                            else:
+                                print(text(MessageId.CLI_READY))
+                            print(state.draft.model_dump_json(indent=2))
                 except WorkflowError as exc:
+                    if streamed_text:
+                        print()
                     print(f"{text(MessageId.CLI_ERROR)}: {exc.text(context.language)}")
         else:
             print(text(MessageId.CLI_DEMO))
@@ -52,7 +72,11 @@ async def run(args):
             for message in [text(MessageId.DEMO_FIRST_MESSAGE), text(MessageId.DEMO_SECOND_MESSAGE)]:
                 print(f"> {message}")
                 state = await workflow.advance(state, message, context)
-                print(state.model_dump_json(indent=2))
+                if state.question:
+                    print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
+                else:
+                    print(text(MessageId.CLI_READY))
+                print(state.draft.model_dump_json(indent=2))
 
 
 def main():

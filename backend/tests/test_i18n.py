@@ -25,9 +25,9 @@ def test_every_catalog_message_has_every_supported_language():
     {"en": "Question"},
     {"it": " ", "en": "Question"},
     {"it": "Domanda", "en": "Question", "fr": "Question"},
-    "A single unlocalized string",
+    {},
 ])
-def test_incomplete_or_invalid_localized_text_is_rejected(value):
+def test_static_localized_text_rejects_missing_empty_or_unsupported_languages(value):
     with pytest.raises(ValidationError):
         LocalizedText.model_validate(value)
 
@@ -46,18 +46,39 @@ def test_catalog_rejects_an_unknown_message():
         MessageCatalog.model_validate(data)
 
 
-def test_tool_schema_requires_exactly_the_supported_language_keys():
+def test_tool_schema_uses_a_single_question_and_validated_language_choice():
     schema = AskClarificationArguments.model_json_schema()
-    translations = schema["$defs"]["LocalizedText"]
-    assert set(translations["required"]) == {language.value for language in Language}
-    assert set(translations["properties"]) == {language.value for language in Language}
-    assert translations["additionalProperties"] is False
+    assert schema["properties"]["question"]["type"] == "string"
+    assert schema["$defs"]["Language"]["enum"] == ["it", "en"]
 
 
-def test_state_serializes_translations_as_a_language_dictionary():
-    state = EventWorkflowState(question=localized(MessageId.TITLE))
-    assert set(state.model_dump(mode="json")["question"]) == {"it", "en"}
-    assert state.question.text("en") == "What should this event be called?"
+def test_state_stores_one_question_and_conversation_language():
+    state = EventWorkflowState(question="Quando?", conversation_language=Language.EN)
+    assert state.model_dump(mode="json")["question"] == "Quando?"
+    assert state.conversation_language == Language.EN
+
+
+@pytest.mark.parametrize("event", [
+    {"kind": "completed"},
+    {"kind": "text"},
+    {"kind": "progress"},
+])
+def test_workflow_events_require_the_payload_for_their_kind(event):
+    from kairos.contracts import WorkflowEvent
+
+    with pytest.raises(ValidationError):
+        WorkflowEvent.model_validate(event)
+
+
+@pytest.mark.parametrize("event", [
+    {"kind": "text"},
+    {"kind": "tool_call"},
+])
+def test_provider_events_require_the_payload_for_their_kind(event):
+    from kairos.contracts import ProviderEvent
+
+    with pytest.raises(ValidationError):
+        ProviderEvent.model_validate(event)
 
 
 def test_errors_have_stable_codes_and_translated_user_messages():

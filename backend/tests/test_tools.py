@@ -17,23 +17,21 @@ def context():
 
 def test_model_can_choose_clarification_instead_of_updating_the_draft():
     original = EventWorkflowState()
-    call = ToolCall(name="ask_event_clarification", arguments={"question": {
-        "it": "Quale venerdì intendi?", "en": "Which Friday do you mean?"
-    }})
+    call = ToolCall(name="ask_event_clarification", arguments={"question": "Quale venerdì intendi?"})
     workflow = EventWorkflow(ScriptedEventProvider([call]))
     state = asyncio.run(workflow.advance(original, "Venerdì ho una visita", context()))
-    assert state.question.text("it") == "Quale venerdì intendi?"
-    assert state.question.text("en") == "Which Friday do you mean?"
+    assert state.question == "Quale venerdì intendi?"
+    assert state.conversation_language.value == "it"
     assert state.status == "collecting"
     assert original == EventWorkflowState()
     assert state.draft.title is None
 
 
 @pytest.mark.parametrize("name,arguments", [
-    ("ask_event_clarification", {"question": {"it": "Quale venerdì?"}}),
-    ("update_event_draft", {"patch": {}, "clarification": {"en": "Which Friday?"}}),
+    ("ask_event_clarification", {"question": "  "}),
+    ("update_event_draft", {"patch": {}, "clarification": "  "}),
 ])
-def test_incomplete_model_translations_leave_state_unchanged(name, arguments):
+def test_invalid_question_text_leaves_state_unchanged(name, arguments):
     original = EventWorkflowState()
     workflow = EventWorkflow(ScriptedEventProvider([ToolCall(name=name, arguments=arguments)]))
     with pytest.raises(WorkflowError) as error:
