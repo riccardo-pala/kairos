@@ -1,0 +1,20 @@
+docs/working/team.md
+  s_bff12bdde01e92::t_b51e8cb6340929 12,23
+  s_bff12bdde01e92::t_69446db7b9e851 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "747d844fe3464d587dfe9360bfa87e7bc86aada2",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
