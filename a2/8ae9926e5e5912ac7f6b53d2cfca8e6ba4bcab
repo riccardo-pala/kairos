@@ -1,0 +1,31 @@
+README.md
+  s_bff12bdde01e92::t_37993b15e09b56 7,22-38
+  s_bff12bdde01e92::t_d030cbd1ed856b 39
+backend/uv.lock
+  s_bff12bdde01e92::t_c661cfbfbbe209 5-13,45-53,63-79,140,143,153,156,162-173,319-330,351-363
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_b6730fec70c279 42-43
+backend/src/kairos/api.py
+  s_bff12bdde01e92::t_e948d1c29cbb98 34,181-185
+  s_bff12bdde01e92::t_069870d91f1af9 1-33,35-180,186-200
+backend/pyproject.toml
+  s_bff12bdde01e92::t_669074a481f71d 5
+backend/src/kairos/i18n.py
+  s_bff12bdde01e92::t_440712b516137a 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a28ae9926e5e5912ac7f6b53d2cfca8e6ba4bcab",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
