@@ -31,6 +31,11 @@ Questi sono casi d’uso e capacità proposti dall’utente per la prima version
 - **Feedback su bug e miglioramenti:** sezione in cui l’utente può segnalare bug o proporre miglioramenti; un agente raccoglie, riordina, struttura e filtra i feedback in base alla loro utilità.
 - **Guardrail dei modelli:** l’utente li considera molto importanti. La collocazione temporale indicata dall’utente è “pro futuro”.
 
+## Proposte UI future — da valutare
+
+- Durante la revisione, il frontend potrebbe proporre titoli alternativi selezionabili e un mini calendario per la data.
+- Il luogo potrebbe iniziare come campo semplice; una mappa o selezione geografica restano un possibile sviluppo futuro. Nessuna di queste proposte è inclusa nell'implementazione corrente.
+
 ## Proposta del coordinatore — da valutare
 
 - Anticipare i guardrail dei modelli fin dalla prima versione, pur avendo l’utente indicato il tema come pro futuro. È una proposta del coordinatore, non una decisione dell’utente.
