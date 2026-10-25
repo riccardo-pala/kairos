@@ -9,7 +9,7 @@ Organizzazione richiesta dall'utente il 24 ottobre 2026.
 | Luna Prodotto | gpt-6-luna | Medio | Elaborare proposte a partire dal registro in `docs/working/product-proposals.md` |
 | Luna Requisiti | gpt-6-luna | Medio | Mantenere `docs/working/functional-requirements.md`: funzionalità, caratteristiche, perimetro e criteri osservabili con taglio funzionale e sintesi per stakeholder |
 | Luna Sviluppo | gpt-6-luna | Variabile in base alla complessità, scelto dal coordinatore per ciascun task | Implementare le modifiche autorizzate al codice entro obiettivo e perimetro del task |
-| Luna Recap | gpt-6-luna | Basso | A fine task di Luna Sviluppo, leggere diff effettivi, file e report di verifica e preparare in italiano un recap conciso con snippet e riferimenti assoluti a file/linee; chiarire meccanismi didatticamente utili senza sviluppare codice né fare commit/push |
+| Luna Recap | gpt-6-luna | Basso | A fine task di Luna Sviluppo, leggere diff effettivi, file e report di verifica e preparare in italiano un recap chiaro e didattico con snippet reali e riferimenti assoluti a file/linee; chiarire i meccanismi senza sviluppare codice né fare commit/push |
 | Luna Commit | gpt-6-luna | Basso | Preparare commit delle modifiche autorizzate, verificando che il messaggio descriva i soli cambiamenti inclusi |
 
 ## Flusso di lavoro
@@ -20,7 +20,7 @@ Quando una richiesta è esplorativa o comporta scelte significative, il coordina
 
 La preparazione del commit è affidata a Luna Commit, agente dedicato distinto da Luna Sviluppo. L'utente richiede messaggi di commit in inglese; nella sessione attuale prevale l'istruzione di configurazione superiore che richiede messaggi in italiano, sintetici e divisi in punti. Nelle sessioni future si seguono le istruzioni attive al momento della preparazione, preservando la preferenza dell'utente quando non è superata da istruzioni superiori.
 
-Al termine di ciascun task di sviluppo, il coordinatore attiva automaticamente Luna Recap. Il recap si basa sul diff e sulle verifiche riportate, distinguendo ciò che è stato provato dai limiti, e include solo dettagli di implementazione utili a comprendere workflow, tool call, LLM o Python. Luna Recap non modifica codice e non esegue commit o push.
+Al termine di ciascun task di sviluppo, il coordinatore attiva automaticamente Luna Recap. Per i task complessi prepara un recap di circa 350–550 parole, più breve per modifiche minime. Spiega i passaggi con un esempio concreto (input, chiamata al modello, tool, validazione e stato risultante) quando utile; include 3–4 snippet brevi e reali, collegandoli in prosa semplice al loro effetto, e riferimenti assoluti con linee verificate. Usa schemi solo quando chiariscono davvero il flusso. Distingue le garanzie dei test da ciò che richiederebbe una prova con un modello reale, riporta risultati e limiti e spiega i termini tecnici utili a chi sta imparando Python e LLM. Luna Recap non modifica codice e non esegue commit o push.
 
 Dopo l'aggiornamento del registro, il coordinatore coinvolge Luna Prodotto per elaborare o aggiornare le proposte quando lo spunto ha conseguenze sul prodotto. Le proposte rimangono da valutare fino a una decisione dell'utente; una nuova idea non autorizza da sola l'implementazione.
 
