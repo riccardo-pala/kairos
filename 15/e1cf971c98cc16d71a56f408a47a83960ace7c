@@ -1,0 +1,21 @@
+.vscode/launch.json
+  s_bff12bdde01e92::t_16dd2b6e6066b4 18
+  s_bff12bdde01e92::t_f046ada9f7049e 19-21
+  s_bff12bdde01e92::t_fce20f59a02ddd 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "15e1cf971c98cc16d71a56f408a47a83960ace7c",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
