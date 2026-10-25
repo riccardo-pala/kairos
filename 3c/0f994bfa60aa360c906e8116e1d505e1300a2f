@@ -1,0 +1,42 @@
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_7ce22717c0b3f3 44-45
+backend/Dockerfile
+  s_bff12bdde01e92::t_749b600834caf1 1-24
+backend/migrations/001_create_sessions.sql
+  s_bff12bdde01e92::t_ceeafd0dfda388 1-8
+compose.yaml
+  s_bff12bdde01e92::t_791c981df8beb5 1-23,25-46
+  s_bff12bdde01e92::t_967c5e9672e994 24
+backend/src/kairos/api.py
+  s_bff12bdde01e92::t_b3fd6008afb970 1,7,9,13,15-16,22-28,33,39,47-52,55,71-83,100,119-120,124,126,128,130,132-139,141,149-156,158-168,171,174,180-185,188-220,227,232,238-256,258,260,263
+backend/src/kairos/session_store.py
+  s_bff12bdde01e92::t_d4eebf4c9abcf9 1-3,5-38,44-85,88-111,118,121-147
+  s_bff12bdde01e92::t_13af3640f9f2d2 86-87,119-120
+  s_bff12bdde01e92::t_855dc4638a124c 41-42
+  s_bff12bdde01e92::t_82e1436298d559 39-40,43
+  s_bff12bdde01e92::t_3ea6fc4917835e 4,112-117
+backend/pyproject.toml
+  s_bff12bdde01e92::t_69a163e7ec6186 5-11
+backend/.dockerignore
+  s_bff12bdde01e92::t_a1aa99ea3de113 1-10
+backend/src/kairos/i18n.py
+  s_bff12bdde01e92::t_25853c43fe3f23 59-60
+backend/uv.lock
+  s_bff12bdde01e92::t_c9629c0d8b15bc 142,156,194-265,426-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3c0f994bfa60aa360c906e8116e1d505e1300a2f",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
