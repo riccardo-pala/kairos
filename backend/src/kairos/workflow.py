@@ -1,17 +1,18 @@
 """One model proposal per turn; Python owns validation and workflow state."""
 
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from kairos.contracts import (
     EventProvider,
     EventWorkflowState,
     RequestContext,
+    ToolCall,
     WorkflowError,
     WorkflowEvent,
 )
-from kairos.i18n import MessageId, translate
+from kairos.i18n import Language, MessageId, translate
 from kairos.models.event import EventDraft
 from kairos.tools import ToolRegistry, event_tools
 
@@ -90,7 +91,10 @@ class EventWorkflow:
         yield WorkflowEvent(
             kind="progress", message=translate(MessageId.PROGRESS_VALIDATE, context.language)
         )
-        result = self.tools.execute(calls[0], state, context)
+        call = calls[0]
+        if self._next_question(state.draft) == MessageId.REMINDERS:
+            call = self._prepare_reminder_call(call, state, context)
+        result = self.tools.execute(call, state, context)
         candidate = result.draft
         if candidate.timezone is None:
             candidate.timezone = context.timezone
@@ -152,3 +156,118 @@ class EventWorkflow:
         if draft.reminders is None:
             return MessageId.REMINDERS
         return None
+
+    @staticmethod
+    def _prepare_reminder_call(
+        call: ToolCall, state: EventWorkflowState, context: RequestContext
+    ) -> ToolCall:
+        """Restrict a reminder answer to reminders and translate clock times to offsets."""
+        if call.name != "update_event_draft":
+            return call
+        arguments = call.arguments
+        patch = arguments.get("patch")
+        if not isinstance(patch, dict):
+            return call  # Let the normal tool validation report malformed arguments.
+
+        safe_arguments = {
+            "patch": {},
+            "conversation_language": arguments.get("conversation_language"),
+        }
+        if "clarification" in arguments:
+            safe_arguments["clarification"] = arguments["clarification"]
+
+        reminder_time_value = patch.get("start_time")
+        has_clock_time = "start_time" in patch and reminder_time_value is not None
+        reminders_supplied = "reminders" in patch
+        if has_clock_time:
+            try:
+                reminder_time = (
+                    reminder_time_value
+                    if isinstance(reminder_time_value, time)
+                    else time.fromisoformat(reminder_time_value)
+                )
+            except (TypeError, ValueError):
+                return EventWorkflow._unclear_reminder_call(arguments, state, context)
+
+            offset = EventWorkflow._minutes_before_for_clock_time(state.draft, reminder_time)
+            if offset is None:
+                return EventWorkflow._unclear_reminder_call(arguments, state, context)
+            if reminders_supplied:
+                requested = patch["reminders"]
+                if requested is None:
+                    reminders = []
+                elif not isinstance(requested, list):
+                    safe_arguments["patch"]["reminders"] = requested
+                    return ToolCall(name=call.name, arguments=safe_arguments)
+                elif not requested:
+                    return EventWorkflow._unclear_reminder_call(arguments, state, context)
+                else:
+                    reminders = list(requested)
+            else:
+                reminders = []
+            if not any(
+                isinstance(item, dict) and item.get("minutes_before") == offset
+                for item in reminders
+            ):
+                reminders.append({"minutes_before": offset})
+            safe_arguments["patch"]["reminders"] = reminders
+        elif reminders_supplied:
+            safe_arguments["patch"]["reminders"] = patch["reminders"]
+
+        return ToolCall(name=call.name, arguments=safe_arguments)
+
+    @staticmethod
+    def _unclear_reminder_call(
+        arguments: dict, state: EventWorkflowState, context: RequestContext
+    ) -> ToolCall:
+        raw_language = arguments.get("conversation_language")
+        try:
+            language = Language(raw_language) if raw_language is not None else None
+        except (TypeError, ValueError):
+            language = None
+        clarification = translate(
+            MessageId.REMINDER_CLOCK_TIME_UNCLEAR,
+            language or state.conversation_language or context.language,
+        )
+        return ToolCall(
+            name="update_event_draft",
+            arguments={
+                "patch": {},
+                "clarification": clarification,
+                "conversation_language": arguments.get("conversation_language"),
+            },
+        )
+
+    @staticmethod
+    def _minutes_before_for_clock_time(draft: EventDraft, reminder_time: time) -> int | None:
+        if draft.start_date is None or draft.start_time is None or draft.timezone is None:
+            return None
+        try:
+            zone = ZoneInfo(draft.timezone)
+            reminder_draft = EventDraft(
+                start_date=draft.start_date,
+                start_time=reminder_time,
+                timezone=draft.timezone,
+            )
+            if time_needs_clarification(draft) or time_needs_clarification(reminder_draft):
+                return None
+
+            event_local = draft.local_starts_at
+            reminder_local = datetime.combine(draft.start_date, reminder_time)
+            event_instant = (
+                event_local.replace(tzinfo=zone)
+                if event_local.tzinfo is None
+                else event_local
+            ).astimezone(UTC)
+            reminder_instant = (
+                reminder_local.replace(tzinfo=zone)
+                if reminder_local.tzinfo is None
+                else reminder_local
+            ).astimezone(UTC)
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
+
+        delta_seconds = (event_instant - reminder_instant).total_seconds()
+        if delta_seconds <= 0 or delta_seconds % 60:
+            return None
+        return int(delta_seconds // 60)

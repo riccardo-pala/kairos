@@ -22,6 +22,7 @@ class MessageId(StrEnum):
     REMINDERS = "question.reminders"
     REMINDER_IN_PAST = "error.reminder_in_past"
     REMINDER_TOOL_COUNT = "error.reminder_tool_count"
+    REMINDER_CLOCK_TIME_UNCLEAR = "question.reminder_clock_time_unclear"
     TASK_REMOVAL_AMBIGUOUS = "question.task_removal_ambiguous"
     INVALID_MESSAGE = "error.invalid_message"
     TURN_LIMIT = "error.turn_limit"

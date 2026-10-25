@@ -123,7 +123,13 @@ class EventDraftPatch(BaseModel):
 
     title: NonEmptyText | None = None
     start_date: date | None = None
-    start_time: time | None = None
+    start_time: time | None = Field(
+        default=None,
+        description=(
+            "Event's local start time, except while answering the reminder question: "
+            "then an explicit clock time carries the requested reminder time and is converted to minutes_before."
+        ),
+    )
     timezone: str | None = None
     location: str | None = None
     duration_minutes: int | None = Field(default=None, gt=0, strict=True)
@@ -214,7 +220,10 @@ def event_tools() -> ToolRegistry:
             name="update_event_draft",
             description=(
                 "Update explicit non-task event fields in patch; change activities only with "
-                "top-level task_operations.add/remove. Omit unchanged fields. Never save or schedule an event."
+                "top-level task_operations.add/remove. When answering a reminder question, "
+                "change reminders only; an absolute reminder clock time may use patch.start_time, "
+                "which Python converts without changing the event time. Omit unchanged fields. "
+                "Never save or schedule an event."
             ),
             arguments_model=UpdateEventArguments,
             handler=update_event_draft,

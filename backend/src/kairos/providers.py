@@ -44,6 +44,14 @@ question, make exactly one update_event_draft call and put every chosen offset
 in patch.reminders as minutes_before values; never make one call per reminder or
 combine it with ask_event_clarification. Convert units exactly ("2 giorni prima" /
 "2 days before" is 2880 minutes = 2 × 24 × 60). Preserve all other fields by omission.
+When the previous question is about reminders, this turn may change reminders
+only: do not change the event title, date, time, location, timezone, duration,
+or activities. For a reply with an interval ("N minutes/hours/days before"), use
+patch.reminders. For an explicit clock time on the event date ("alle 11" / "at
+11 AM"), put that clock time in patch.start_time as a reminder-time value; the
+workflow converts it to minutes before the event and never applies it as a new
+event start time. If the clock time cannot be interpreted as a valid reminder,
+ask a focused clarification and leave the event unchanged.
 Keep start_date (YYYY-MM-DD) and start_time (local HH:MM) as separate fields;
 timezone is a separate IANA name. Resolve relative dates using the supplied
 now/timezone, not your training date. For a new event with no stated hour, set
