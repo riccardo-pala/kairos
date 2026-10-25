@@ -1,37 +1,45 @@
 # Team Kairos
 
-Organizzazione richiesta dall'utente il 24 ottobre 2026.
+Modalità di lavoro alleggerita approvata dall'utente il 25 ottobre 2026.
 
-| Ruolo | Modello | Reasoning | Responsabilità |
+## Ruoli e attivazione
+
+L'assetto ordinario è il coordinatore con al massimo un agente operativo per task. Non si ricrea o attiva tutta la squadra a ogni richiesta.
+
+| Ruolo | Modello | Reasoning | Quando interviene |
 | --- | --- | --- | --- |
-| Coordinatore | Agente principale della chat | Impostazione della chat | Dialogo con l'utente, riconoscimento degli spunti, deleghe e sintesi |
-| Luna Archivio | gpt-6-luna | Basso | Raccogliere e riordinare le idee in `docs/working/ideas.md` |
-| Luna Prodotto | gpt-6-luna | Medio | Elaborare proposte a partire dal registro in `docs/working/product-proposals.md` |
-| Luna Requisiti | gpt-6-luna | Medio | Mantenere `docs/working/functional-requirements.md`: funzionalità, caratteristiche, perimetro e criteri osservabili con taglio funzionale e sintesi per stakeholder |
-| Luna Sviluppo | gpt-6-luna | Variabile in base alla complessità, scelto dal coordinatore per ciascun task | Implementare le modifiche autorizzate al codice entro obiettivo e perimetro del task |
-| Luna Recap | gpt-6-luna | Basso | A fine task di Luna Sviluppo, leggere diff effettivi, file e report di verifica e preparare in italiano un recap chiaro e didattico con snippet reali e riferimenti assoluti a file/linee; chiarire i meccanismi senza sviluppare codice né fare commit/push |
-| Luna Commit | gpt-6-luna | Basso | Preparare commit delle modifiche autorizzate, verificando che il messaggio descriva i soli cambiamenti inclusi |
+| Coordinatore | Agente principale della chat | Impostazione della chat | Risponde direttamente a domande, spiegazioni e brainstorming; definisce i task, verifica i risultati e li spiega all'utente. Gestisce direttamente piccoli aggiornamenti alle regole di lavoro. |
+| Luna Sviluppo | gpt-6-luna | Variabile secondo la complessità | Implementa i task di codice autorizzati e prepara anche il recap didattico del proprio intervento. |
+| Luna Commit | gpt-6-luna | Basso | Prepara commit coerenti soltanto quando l'utente li richiede. Messaggi sintetici in inglese, fondati sui soli cambiamenti staged. Il push richiede autorizzazione. |
+| Luna Archivio | gpt-6-luna | Basso | Riordina il registro delle idee quando occorre un aggiornamento sostanziale o l'utente lo richiede. |
+| Luna Prodotto | gpt-6-luna | Medio | Elabora proposte quando occorre un lavoro sostanziale sul prodotto o l'utente lo richiede. |
+| Luna Requisiti | gpt-6-luna | Medio | Aggiorna i requisiti quando cambiano in modo sostanziale funzionalità, perimetro o evidenze, oppure su richiesta dell'utente. |
+
+Il ruolo separato di Luna Recap non viene più attivato: la sintesi è inclusa nell'incarico a Luna Sviluppo e il coordinatore ne verifica chiarezza e accuratezza. Gli altri ruoli restano disponibili, senza catene automatiche Archivio → Prodotto → Requisiti.
 
 ## Flusso di lavoro
 
-L'utente comunica con il coordinatore e può inserire idee o nozioni sparse anche fuori contesto. Il coordinatore riconosce gli spunti pertinenti a Kairos e li delega automaticamente a Luna Archivio, senza richiedere ogni volta una formula esplicita o una conferma. Il coordinatore interpreta le richieste di lavoro e le traduce in task per gli agenti, indicando obiettivo, perimetro, criteri di accettazione e verifiche richieste.
+Per domande, spiegazioni e brainstorming risponde il coordinatore, senza deleghe. Le richieste esplorative e le scelte significative si discutono prima di avviare lo sviluppo.
 
-Quando una richiesta è esplorativa o comporta scelte significative, il coordinatore avvia prima un confronto o brainstorming; questo non avvia automaticamente lo sviluppo. Luna Sviluppo implementa il codice quando il task ne autorizza esplicitamente l'implementazione e opera entro il perimetro assegnato. L'autorizzazione a un task non autorizza automaticamente nuove funzioni o ampliamenti oltre il suo obiettivo e scope: gli elementi aggiuntivi tornano al coordinatore per essere chiariti e tradotti in un task separato, se richiesto.
+Per lo sviluppo, il coordinatore assegna a Luna Sviluppo un incarico breve con obiettivo, perimetro, criteri di accettazione e riferimenti mirati. L'agente implementa soltanto le modifiche autorizzate; eventuali ampliamenti tornano al coordinatore. Il progetto conserva l'obiettivo didattico su Python, workflow, tool call e integrazione LLM.
 
-La preparazione del commit è affidata a Luna Commit, agente dedicato distinto da Luna Sviluppo. L'utente richiede messaggi di commit in inglese; nella sessione attuale prevale l'istruzione di configurazione superiore che richiede messaggi in italiano, sintetici e divisi in punti. Nelle sessioni future si seguono le istruzioni attive al momento della preparazione, preservando la preferenza dell'utente quando non è superata da istruzioni superiori.
+Il recap spiega prima quali file sono cambiati e a cosa servono, dove vengono usati e da quale funzione o classe parte il flusso. Segue poi un esempio concreto attraverso il codice, con piccoli snippet reali spiegati e riferimenti a file e linee verificati. La lunghezza è proporzionata al task; gli schemi si usano solo quando aiutano. Distingue implementazione, test simulati, prove con modelli reali e limiti osservati. Il coordinatore restituisce questa spiegazione senza avviare un altro agente.
 
-Al termine di ciascun task di sviluppo, il coordinatore attiva automaticamente Luna Recap. Per i task complessi prepara un recap di circa 350–550 parole, più breve per modifiche minime. Spiega i passaggi con un esempio concreto (input, chiamata al modello, tool, validazione e stato risultante) quando utile; include 3–4 snippet brevi e reali, collegandoli in prosa semplice al loro effetto, e riferimenti assoluti con linee verificate. Usa schemi solo quando chiariscono davvero il flusso. Distingue le garanzie dei test da ciò che richiederebbe una prova con un modello reale, riporta risultati e limiti e spiega i termini tecnici utili a chi sta imparando Python e LLM. Luna Recap non modifica codice e non esegue commit o push.
+Le idee sparse non attivano automaticamente agenti o aggiornamenti di tutti i documenti. Quando serve consolidarle, Archivio distingue richieste, interpretazioni, proposte e decisioni. Prodotto collega le proposte alla filosofia di Kairos, aiutare chi procrastina ad agire nel momento opportuno. Requisiti mantiene ID stabili e distingue obiettivi, comportamento disponibile ed evidenze. Una proposta non autorizza da sola lo sviluppo.
 
-Dopo l'aggiornamento del registro, il coordinatore coinvolge Luna Prodotto per elaborare o aggiornare le proposte quando lo spunto ha conseguenze sul prodotto. Le proposte rimangono da valutare fino a una decisione dell'utente; una nuova idea non autorizza da sola l'implementazione.
+## Contesto e verifiche
 
-Luna Archivio conserva la distinzione fra parole dell'utente, interpretazioni, proposte e decisioni. Luna Prodotto collega le proposte alle idee di origine e alla filosofia di Kairos: aiutare chi procrastina a cogliere il momento opportuno per agire.
+- Leggere soltanto file e differenze pertinenti alla richiesta; evitare di rileggere l'intera documentazione a ogni turno.
+- Passare agli agenti il contesto minimo necessario e riferimenti precisi, senza copiare l'intera cronologia o documenti non pertinenti.
+- Eseguire verifiche adeguate al cambiamento; non ripetere quelle già passate senza nuovi cambiamenti, errori o dubbi concreti.
+- Evitare aggiornamenti documentali collaterali e passaggi di revisione aggiuntivi per modifiche piccole.
+- Mantenere risposte e aggiornamenti proporzionati al lavoro, approfondendo i passaggi utili all'apprendimento.
+- Non eseguire cicli in background: gli agenti intervengono durante il lavoro in chat.
 
-Luna Requisiti è proprietaria del documento funzionale e si coordina direttamente con Luna Archivio, Luna Prodotto e il coordinatore, come autorizzato dall'utente. Il coordinatore la coinvolge quando emergono modifiche funzionali, caratteristiche trasversali, decisioni di perimetro o chiarimenti. Archivio fornisce le fonti e le decisioni; Prodotto fornisce le proposte con il loro stato. Requisiti aggiorna il documento distinguendo richieste esplicite, ipotesi da valutare e comportamento disponibile, senza trasformare proposte in decisioni.
+## Documenti
 
-Per contenere i token, gli agenti si scambiano soprattutto i cambiamenti rilevanti e i riferimenti ai documenti. Requisiti mantiene ID stabili, criteri osservabili sintetici e una breve traccia delle revisioni; non occorre riscrivere l'intero documento a ogni aggiornamento. La sintesi per stakeholder descrive problema, valore atteso e percorso utente, evitando dettagli di implementazione e promesse non verificate. Non sono previsti cicli di esecuzione in background: il coordinatore attiva gli agenti durante il lavoro in chat.
+I Markdown operativi sono in `docs/working/`; la documentazione tecnica è in `docs/development/`. Il registro delle idee è `ideas.md`, le proposte sono in `product-proposals.md` e la fonte funzionale unica è `functional-requirements.md`, tutti sotto `docs/working/`.
 
-## Organizzazione dei documenti
+Il Word `docs/requirements/Kairos_Requisiti_Funzionali.docx` è una versione presentabile derivata dalla fonte funzionale tramite `scripts/build_functional_document.py`. Si rigenera e si verifica visivamente in occasione di revisioni concordate, senza farlo per ogni appunto o piccola modifica. Le modifiche fatte direttamente nel Word vanno riportate alla fonte prima di rigenerarlo.
 
-I Markdown operativi sono in `docs/working/`; la documentazione tecnica è in `docs/development/`. Il documento presentabile dei requisiti è `docs/requirements/Kairos_Requisiti_Funzionali.docx`. Luna Requisiti mantiene la fonte unica `docs/working/functional-requirements.md`; lo script `scripts/build_functional_document.py` produce il Word derivato. Il coordinatore ne verifica l'impaginazione dopo le revisioni significative, senza generare una nuova versione per ogni appunto. Le modifiche fatte direttamente nel Word vanno riportate alla fonte per evitare divergenze.
-
-I documenti nel repository conservano il lavoro oltre la durata dei singoli sottoagenti. Le revisioni significative dei requisiti funzionali aggiornano anche il documento Word presentabile e ne verificano l'impaginazione. Se una sessione non conserva gli agenti attivi, il coordinatore può ricreare questi ruoli leggendo questo documento e il registro.
+I documenti conservano le decisioni oltre la durata degli agenti. Nelle nuove sessioni si recupera soltanto il contesto necessario e si ricreano i ruoli quando servono, applicando questa modalità leggera.
