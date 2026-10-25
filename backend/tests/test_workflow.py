@@ -53,6 +53,18 @@ def test_followup_preserves_event_and_tasks_and_asks_for_reminders():
     assert first.draft.reminders is None
 
 
+def test_clear_intention_becomes_title_then_workflow_asks_only_for_date_time():
+    provider = ScriptedEventProvider([call({"title": "Portare la moto dal meccanico"})])
+    state = advance(EventWorkflow(provider), EventWorkflowState(), "devo andare dal meccanico a portare la moto")
+
+    assert state.draft.title == "Portare la moto dal meccanico"
+    assert state.question == "In quale data e a che ora?"
+    assert state.draft.location is None
+    assert state.draft.duration_minutes is None
+    assert state.draft.tasks == []
+    assert state.draft.reminders is None
+
+
 def test_explicit_no_reminders_is_ready():
     state = advance(
         EventWorkflow(ScriptedEventProvider([call(event_fields(reminders=[]))])),

@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 import pytest
 
-from kairos.providers import OllamaEventProvider, OllamaMetrics
+from kairos.providers import OllamaEventProvider, OllamaMetrics, SYSTEM_PROMPT
 from kairos.contracts import EventWorkflowState, RequestContext, WorkflowError
 from kairos.tools import event_tools
 
@@ -195,6 +195,15 @@ def test_unsupported_fallback_persists_neutral_reply_and_explicit_language_reque
     assert third_input["previous_question"] == "What year should I use?"
     assert fourth_input["conversation_language"] == "it"
     assert fourth_input["previous_question"] == "A che ora?"
+
+
+def test_prompt_extracts_safe_partial_fields_without_asking_for_optional_details():
+    assert "Create a concise title from the user's clear intention" in SYSTEM_PROMPT
+    assert "whenever any field can be safely extracted" in SYSTEM_PROMPT
+    assert "Location, duration, and tasks are optional and" in SYSTEM_PROMPT
+    assert "never duplicate the main action as a task" in SYSTEM_PROMPT
+    assert "one focused clarification" in SYSTEM_PROMPT
+    assert "motorcycle" not in SYSTEM_PROMPT.lower()
 
 
 @pytest.mark.parametrize("calls", [[], [
