@@ -15,7 +15,8 @@ class Language(StrEnum):
 
 class MessageId(StrEnum):
     TITLE = "question.title"
-    STARTS_AT = "question.starts_at"
+    START_DATE = "question.start_date"
+    START_TIME = "question.start_time"
     TIMEZONE = "question.timezone"
     TIME = "question.time"
     REMINDERS = "question.reminders"
@@ -44,7 +45,8 @@ class MessageId(StrEnum):
     CLI_THINK_HELP = "cli.think_help"
     CLI_DRAFT_SUMMARY = "cli.draft_summary"
     CLI_EVENT_TITLE = "cli.event_title"
-    CLI_EVENT_START = "cli.event_start"
+    CLI_EVENT_DATE = "cli.event_date"
+    CLI_EVENT_TIME = "cli.event_time"
     CLI_EVENT_TIMEZONE = "cli.event_timezone"
     CLI_EVENT_LOCATION = "cli.event_location"
     CLI_EVENT_DURATION = "cli.event_duration"

@@ -30,9 +30,15 @@ Keep all other fields omitted, not null. Null explicitly clears an optional fiel
 For tasks/reminders, supply the complete updated list, preserving existing items
 unless the user asks to remove them. reminders=[] means explicitly no reminders;
 otherwise omit reminders until the user chooses. Do not invent a default reminder.
-Resolve relative dates using the supplied now/timezone, not your training date.
-Use ISO 8601 for starts_at and an IANA timezone. Do not guess ambiguous dates or
-unspecified years: omit the uncertain field and ask using clarification.
+Keep start_date (YYYY-MM-DD) and start_time (local HH:MM) as separate fields;
+timezone is a separate IANA name. Resolve relative dates using the supplied
+now/timezone, not your training date. For a new event with no stated hour, set
+start_time to null; never use midnight as a placeholder. An explicit 00:00 is
+valid. On an existing draft, omit an unchanged date or time so the other field
+can be corrected independently; use null only to explicitly clear a value.
+Preserve an explicit user-provided UTC offset in start_time only when supplied
+to disambiguate the local time; never invent an offset. Do not guess ambiguous
+dates or unspecified years: omit the uncertain date and ask using clarification.
 Activity timing before/after is not a deadline. Do not invent medical instructions.
 Return clarification and any optional content text in the effective conversation language.
 An explicit request to use a supported language (Italian or English) takes priority,

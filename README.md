@@ -4,7 +4,7 @@ Assistente personale per chi procrastina: trasformare intenzioni in piccoli pass
 
 ## Stato attuale
 
-Il backend Python implementa il primo workflow di preparazione di una bozza di evento: dati strutturati, attività prima/dopo, più promemoria, chiarimenti e aggiornamenti su più turni. Il risultato è una bozza in memoria pronta alla revisione. Non sono ancora implementati salvataggio, notifiche, API HTTP, voce e app mobile.
+Il backend Python implementa il primo workflow di preparazione di una bozza di evento: dati strutturati, attività prima/dopo, più promemoria, chiarimenti e aggiornamenti su più turni. La data, l'ora locale e il fuso restano campi distinti; un orario mancante non viene rappresentato come mezzanotte. Il risultato è una bozza in memoria pronta alla revisione. Non sono ancora implementati salvataggio, notifiche, API HTTP, voce e app mobile.
 
 La prima POC si concentra sul percorso da un impegno alle azioni necessarie per affrontarlo. La lista della spesa è esclusa dalla POC: rimane un'idea futura, da rivalutare solo con un legame chiaro con il supporto a chi procrastina, evitando di accumulare funzionalità scollegate.
 
@@ -31,7 +31,7 @@ Usare `--language en` per i testi della CLI e i dati dimostrativi in inglese, `-
 
 In VS Code selezionare `backend/.venv/bin/python` come interprete. I percorsi per Pylance e pytest sono già configurati.
 
-La valutazione sperimentale in [docs/development/prompt-evaluation.md](docs/development/prompt-evaluation.md) è uno snapshot storico: confronta il prompt precedente con un candidato compatto, non la versione corrente, che include istruzioni successive per titoli e chiarimenti. Il [report completo](backend/evals/results/qwen3-8b-prompt-comparison.md) conserva il confronto e il comando usato.
+La valutazione sperimentale in [docs/development/prompt-evaluation.md](docs/development/prompt-evaluation.md) e i relativi output sono snapshot storici. Il benchmark appartiene anche al vecchio schema `starts_at` e non è compatibile con l'attuale contratto `start_date`/`start_time`; il report non è stato riscritto.
 
 ## Come funziona il workflow
 

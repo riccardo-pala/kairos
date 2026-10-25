@@ -18,7 +18,7 @@ from kairos.tools import ToolRegistry, event_tools
 
 def time_needs_clarification(draft: EventDraft) -> bool:
     """Reject nonexistent/ambiguous local times and offset/zone mismatches."""
-    start = draft.starts_at
+    start = draft.local_starts_at
     if start is None or draft.timezone is None:
         return True
     zone = ZoneInfo(draft.timezone)
@@ -111,8 +111,10 @@ class EventWorkflow:
     def _next_question(draft: EventDraft) -> MessageId | None:
         if not draft.title:
             return MessageId.TITLE
-        if draft.starts_at is None:
-            return MessageId.STARTS_AT
+        if draft.start_date is None:
+            return MessageId.START_DATE
+        if draft.start_time is None:
+            return MessageId.START_TIME
         if draft.timezone is None:
             return MessageId.TIMEZONE
         try:

@@ -18,11 +18,10 @@ def print_draft(state: EventWorkflowState, language: Language, *, debug: bool = 
     print(translate(MessageId.CLI_DRAFT_SUMMARY, language))
     if draft.title:
         print(f"  {translate(MessageId.CLI_EVENT_TITLE, language)}: {draft.title}")
-    if draft.starts_at:
-        print(
-            f"  {translate(MessageId.CLI_EVENT_START, language)}: "
-            f"{draft.starts_at.isoformat(sep=' ', timespec='minutes')}"
-        )
+    if draft.start_date:
+        print(f"  {translate(MessageId.CLI_EVENT_DATE, language)}: {draft.start_date.isoformat()}")
+    if draft.start_time:
+        print(f"  {translate(MessageId.CLI_EVENT_TIME, language)}: {draft.start_time.isoformat(timespec='minutes')}")
     if draft.timezone:
         print(f"  {translate(MessageId.CLI_EVENT_TIMEZONE, language)}: {draft.timezone}")
     if draft.location:
@@ -104,7 +103,8 @@ async def run(args):
             print(text(MessageId.CLI_DEMO))
             provider = ScriptedEventProvider([
                 ToolCall(name="update_event_draft", arguments={"patch": {
-                    "title": text(MessageId.DEMO_TITLE), "starts_at": "2026-10-31T14:30:00",
+                    "title": text(MessageId.DEMO_TITLE), "start_date": "2026-10-31",
+                    "start_time": "14:30",
                     "location": "Ambulatorio X", "duration_minutes": 30,
                     "tasks": [{"description": text(MessageId.DEMO_TASK), "timing": "before"}],
                 }}),

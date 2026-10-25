@@ -33,7 +33,7 @@ def advance(workflow, state, message="A user message", language="it"):
 
 
 def event_fields(**overrides):
-    return {"title": "Visita", "starts_at": "2026-10-31T14:30:00", **overrides}
+    return {"title": "Visita", "start_date": "2026-10-31", "start_time": "14:30", **overrides}
 
 
 def test_followup_preserves_event_and_tasks_and_asks_for_reminders():
@@ -58,11 +58,77 @@ def test_clear_intention_becomes_title_then_workflow_asks_only_for_date_time():
     state = advance(EventWorkflow(provider), EventWorkflowState(), "devo andare dal meccanico a portare la moto")
 
     assert state.draft.title == "Portare la moto dal meccanico"
-    assert state.question == "In quale data e a che ora?"
+    assert state.question == "In quale data?"
     assert state.draft.location is None
     assert state.draft.duration_minutes is None
     assert state.draft.tasks == []
     assert state.draft.reminders is None
+
+
+def test_date_without_time_keeps_date_and_asks_only_for_time():
+    state = advance(EventWorkflow(ScriptedEventProvider([
+        call({"title": "Portare la moto dal meccanico", "start_date": "2026-10-26", "start_time": None})
+    ])), EventWorkflowState())
+    assert state.draft.start_date.isoformat() == "2026-10-26"
+    assert state.draft.start_time is None
+    assert state.question == "A che ora?"
+
+
+def test_time_without_date_keeps_time_and_asks_only_for_date():
+    state = advance(EventWorkflow(ScriptedEventProvider([call({"title": "Visita", "start_time": "10:30"})])), EventWorkflowState())
+    assert state.draft.start_date is None
+    assert state.draft.start_time.isoformat(timespec="minutes") == "10:30"
+    assert state.question == "In quale data?"
+
+
+def test_time_correction_preserves_existing_date():
+    workflow = EventWorkflow(ScriptedEventProvider([
+        call(event_fields(reminders=[])),
+        call({"start_time": "15:30"}),
+    ]))
+    original = advance(workflow, EventWorkflowState())
+    corrected = advance(workflow, original)
+
+    assert corrected.draft.start_date.isoformat() == "2026-10-31"
+    assert corrected.draft.start_time.isoformat(timespec="minutes") == "15:30"
+    assert corrected.status == "ready_for_review"
+
+
+def test_date_and_time_patches_are_independent_and_explicit_null_clears():
+    workflow = EventWorkflow(ScriptedEventProvider([
+        call(event_fields(reminders=[])),
+        call({"start_date": "2026-11-01"}),
+        call({"start_time": None}),
+        call({"start_date": None}),
+    ]))
+    first = advance(workflow, EventWorkflowState())
+    date_corrected = advance(workflow, first)
+    assert date_corrected.draft.start_date.isoformat() == "2026-11-01"
+    assert date_corrected.draft.start_time.isoformat(timespec="minutes") == "14:30"
+
+    time_cleared = advance(workflow, date_corrected)
+    assert time_cleared.draft.start_date.isoformat() == "2026-11-01"
+    assert time_cleared.draft.start_time is None
+    assert time_cleared.question == "A che ora?"
+
+    date_cleared = advance(workflow, time_cleared)
+    assert date_cleared.draft.start_date is None
+    assert date_cleared.draft.start_time is None
+    assert date_cleared.question == "In quale data?"
+
+
+def test_explicit_midnight_is_valid_but_not_an_implicit_default():
+    midnight = advance(EventWorkflow(ScriptedEventProvider([
+        call({"title": "Turno notturno", "start_date": "2026-10-26", "start_time": "00:00", "reminders": []})
+    ])), EventWorkflowState())
+    assert midnight.draft.local_starts_at.isoformat() == "2026-10-26T00:00:00"
+    assert midnight.status == "ready_for_review"
+
+    date_only = advance(EventWorkflow(ScriptedEventProvider([
+        call({"title": "Turno", "start_date": "2026-10-26", "start_time": None, "reminders": []})
+    ])), EventWorkflowState())
+    assert date_only.draft.start_time is None
+    assert date_only.question == "A che ora?"
 
 
 def test_explicit_no_reminders_is_ready():
@@ -122,20 +188,20 @@ def test_ambiguity_blocks_ready_even_when_fields_are_complete():
 
 
 @pytest.mark.parametrize("start", [
-    "2026-10-25T02:30:00",  # Clock goes back: two possible instants.
-    "2027-03-28T02:30:00",  # Clock goes forward: this local time never occurs.
-    "2026-10-31T14:30:00+02:00",  # Offset disagrees with Europe/Rome.
+    {"start_date": "2026-10-25", "start_time": "02:30"},  # Fold: two instants.
+    {"start_date": "2027-03-28", "start_time": "02:30"},  # Gap: no instant.
+    {"start_date": "2026-10-31", "start_time": "14:30+02:00"},  # Offset mismatch.
 ])
 def test_time_ambiguity_or_offset_mismatch_needs_clarification(start):
     workflow = EventWorkflow(ScriptedEventProvider([
-        call(event_fields(starts_at=start, reminders=[]))
+        call(event_fields(**start, reminders=[]))
     ]))
     assert advance(workflow, EventWorkflowState()).status == "collecting"
 
 
 def test_explicit_dst_offset_resolves_ambiguity():
     workflow = EventWorkflow(ScriptedEventProvider([
-        call(event_fields(starts_at="2026-10-25T02:30:00+01:00", reminders=[]))
+        call(event_fields(start_date="2026-10-25", start_time="02:30+01:00", reminders=[]))
     ]))
     assert advance(workflow, EventWorkflowState()).status == "ready_for_review"
 
@@ -152,7 +218,7 @@ def test_invalid_zone_is_not_ready():
 def test_language_changes_question_not_time_zone():
     workflow = EventWorkflow(ScriptedEventProvider([call(event_fields())]))
     state = advance(workflow, EventWorkflowState(), language="en")
-    assert state.question.startswith("When")
+    assert state.question.startswith("When would you like reminders?")
     assert state.conversation_language == Language.EN
     assert state.draft.timezone == "Europe/Rome"
 

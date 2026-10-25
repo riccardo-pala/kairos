@@ -1,6 +1,7 @@
 {
   "question.title": {"it": "Come vuoi chiamare l'impegno?", "en": "What should this event be called?"},
-  "question.starts_at": {"it": "In quale data e a che ora?", "en": "On which date and at what time?"},
+  "question.start_date": {"it": "In quale data?", "en": "On which date?"},
+  "question.start_time": {"it": "A che ora?", "en": "At what time?"},
   "question.timezone": {"it": "Quale fuso orario devo usare?", "en": "Which time zone should I use?"},
   "question.time": {"it": "L'orario è ambiguo o non valido nel fuso indicato. Puoi precisarlo?", "en": "The time is ambiguous or invalid in this time zone. Could you clarify it?"},
   "question.reminders": {"it": "Quando vuoi i promemoria? Puoi sceglierne più di uno, oppure nessuno.", "en": "When would you like reminders? You can choose several, or none."},
@@ -29,7 +30,8 @@
   "cli.think_help": {"it": "Abilita il ragionamento interno del modello (non viene mostrato)", "en": "Enable model reasoning generation (it is not displayed)"},
   "cli.draft_summary": {"it": "Dati della bozza:", "en": "Draft details:"},
   "cli.event_title": {"it": "Impegno", "en": "Event"},
-  "cli.event_start": {"it": "Quando", "en": "When"},
+  "cli.event_date": {"it": "Data", "en": "Date"},
+  "cli.event_time": {"it": "Ora", "en": "Time"},
   "cli.event_timezone": {"it": "Fuso orario", "en": "Time zone"},
   "cli.event_location": {"it": "Luogo", "en": "Location"},
   "cli.event_duration": {"it": "Durata", "en": "Duration"},

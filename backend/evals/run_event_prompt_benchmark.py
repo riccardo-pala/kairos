@@ -1,4 +1,8 @@
-"""Small, repeatable local-model comparison for the event workflow prompt."""
+"""Historical benchmark for the legacy starts_at event schema.
+
+Its saved report is an immutable snapshot. The current EventDraft uses separate
+start_date/start_time fields, so this benchmark is intentionally not rerunnable.
+"""
 
 from __future__ import annotations
 
@@ -393,6 +397,15 @@ async def main_async(args: argparse.Namespace) -> dict:
 
 
 def main() -> None:
+    raise SystemExit(
+        "This is a historical benchmark for the legacy starts_at schema; "
+        "the saved report remains available, but the runner is incompatible "
+        "with the current start_date/start_time contract."
+    )
+
+
+def _legacy_main() -> None:
+    """Retained command-line implementation for provenance; do not invoke."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:11434")
     parser.add_argument("--model", default=MODEL)
