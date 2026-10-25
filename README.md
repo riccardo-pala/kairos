@@ -31,6 +31,8 @@ Usare `--language en` per i testi della CLI e i dati dimostrativi in inglese, e 
 
 In VS Code selezionare `backend/.venv/bin/python` come interprete. I percorsi per Pylance e pytest sono già configurati.
 
+La valutazione sperimentale del prompt per il workflow evento, la scelta di mantenere il baseline e i risultati sul modello locale sono documentati in [docs/development/prompt-evaluation.md](docs/development/prompt-evaluation.md). Il [report completo](backend/evals/results/qwen3-8b-prompt-comparison.md) include il comando per ripetere la valutazione con un modello Ollama già installato.
+
 ## Come funziona il workflow
 
 ```mermaid

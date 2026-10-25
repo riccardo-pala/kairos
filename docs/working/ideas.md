@@ -39,13 +39,13 @@ Questi sono casi d’uso e capacità proposti dall’utente per la prima version
 
 - Mantenere completo il catalogo statico di stringhe localizzate in italiano e inglese; generare i chiarimenti LLM in una sola lingua per turno, senza agente o chiamata aggiuntiva.
 - Ricavare la preferenza iniziale dal contesto e mantenere la lingua precedente per risposte brevi (“ok”), date e numeri. Un cambio esplicito o chiaramente espresso nella stessa chiamata determina la lingua del turno.
-- Decisione aggiuntiva del 25 ottobre: se la chat indica una lingua non supportata, usare l’inglese come default della chat nella chiamata LLM già prevista. Una richiesta esplicita in italiano o inglese prevale; anche un successivo messaggio sostanziale in una di queste lingue può cambiare la lingua conversazionale. Saluti chiaramente riconosciuti possono indicare la lingua; input brevi, ambigui o neutri mantengono quella precedente. Nessun agente o rilevamento separato. Implementato e verificato con simulazioni; LLM reale non provato.
+- Decisione aggiuntiva del 25 ottobre: se la chat indica una lingua non supportata, usare l’inglese come default della chat nella chiamata LLM già prevista. Una richiesta esplicita in italiano o inglese prevale; anche un successivo messaggio sostanziale in una di queste lingue può cambiare la lingua conversazionale. Saluti chiaramente riconosciuti possono indicare la lingua; input brevi, ambigui o neutri mantengono quella precedente. Nessun agente o rilevamento separato. Regola nel prompt implementata e test simulati passati; una prova limitata su Ollama `qwen3:8b` Q4_K_M ha mostrato esiti linguistici non conformi in quella configurazione, senza conclusioni generali sul modello.
 - Consentire lo streaming testuale come capacità opzionale, distinta dalle tool call. Raccogliere e validare gli argomenti; presentare la bozza validata, mai JSON parziale o reasoning.
 - Produrre dal codice messaggi di progresso riferiti a fasi realmente osservabili, statici nella lingua dell’interfaccia CLI. Non simulare attese, esporre pensieri del modello o aggiungere chiamate LLM per generare aggiornamenti. Il testo LLM e i chiarimenti seguono invece la lingua della conversazione.
 - Limitare questa implementazione a backend e CLI. API, app mobile, persistenza e notifiche non rientrano nella decisione.
-- Implementazione verificata con provider simulato. Non è stata verificata con un modello LLM reale e non garantisce che il modello scelga la lingua attesa.
+- Una valutazione reale, limitata a `qwen3:8b` Q4_K_M con `think=False`, temperatura 0 e seed 42, ha coperto 6 scenari e 9 turni per variante. La baseline ha fallito alcuni casi di scelta e mantenimento lingua; il candidato compatto ha avuto 3/6 check contro 2/6 della baseline, ma è stato scartato per regressioni semantiche nei casi con injection. Il runtime mantiene il prompt baseline di 354 parole; questi risultati non descrivono ogni configurazione né dimostrano un’incapacità generale del modello.
 
-Queste decisioni sono state approvate dall’utente il 25 ottobre 2026 e implementate nel perimetro sopra indicato. Le verifiche con provider simulato non attestano il comportamento di un modello LLM reale.
+Queste decisioni sono state approvate dall’utente il 25 ottobre 2026 e implementate nel perimetro sopra indicato. I test simulati passano; la valutazione reale limitata ha dato esiti non conformi per la selezione della lingua in quella configurazione. Nessun candidato alternativo è stato promosso.
 
 ## Contesto di progetto riportato
 
@@ -81,7 +81,7 @@ Questi punti sono contesto fornito dal coordinatore per avviare il registro; non
 - Registro di tool estendibile, con schema, handler e disponibilità per ciascun tool. Sono presenti `update_event_draft` e `ask_event_clarification`; il secondo espone una capacità di chiarimento già esistente in forma separata. Il workflow sceglie una chiamata per turno.
 - Alla baseline, i chiarimenti LLM erano rappresentati con `LocalizedText` completo e lo streaming era disattivato (`false`); queste parti sono state poi aggiornate secondo le decisioni del 25 ottobre.
 
-Questi elementi descrivono implementazioni iniziali verificate dal coordinatore; l’estensione del registro non implica nuove funzioni di prodotto né autorizza azioni esterne. Non costituiscono una decisione di adottare definitivamente Ollama. Al momento della baseline non risultavano ancora implementate API, persistenza, notifiche o UI. La lingua per turno, lo streaming e i progressi sono stati aggiornati in seguito e verificati con provider simulato; il comportamento con LLM reale resta da verificare.
+Questi elementi descrivono implementazioni iniziali verificate dal coordinatore; l’estensione del registro non implica nuove funzioni di prodotto né autorizza azioni esterne. Non costituiscono una decisione di adottare definitivamente Ollama. Al momento della baseline non risultavano ancora implementate API, persistenza, notifiche o UI. La lingua per turno, lo streaming e i progressi sono stati aggiornati in seguito e verificati con provider simulato; la prova reale limitata sulla lingua ha dato esiti non conformi nella configurazione descritta sopra.
 
 ## Decisioni
 
@@ -89,7 +89,7 @@ Questi elementi descrivono implementazioni iniziali verificate dal coordinatore;
 - La filosofia esplicita dell’utente è il riferimento per valutare le funzionalità: favorire il momento opportuno e contrastare il rimandare.
 - La lista della spesa è esclusa dalla prima POC e conservata come idea futura, da rivalutare per una possibile integrazione coerente con il prodotto. Il perimetro v1 restante non cambia.
 - Criterio di focus esplicito: mantenere le funzionalità coerenti con il problema della procrastinazione ed evitare un insieme dispersivo di funzioni.
-- Backend e CLI adottano stringhe statiche complete IT/EN, chiarimenti e testo LLM in una sola lingua per turno, streaming testuale opzionale separato dalle tool call e messaggi di progresso statici nella lingua UI legati a fasi osservabili; la CLI mostra la bozza validata e non espone JSON parziale o reasoning. Nessuna chiamata LLM aggiuntiva per il progresso. Approvato il 25 ottobre 2026 e verificato con provider simulato, incluso mock HTTP per fallback e cambi lingua; LLM reale non verificato.
+- Backend e CLI adottano stringhe statiche complete IT/EN, chiarimenti e testo LLM in una sola lingua per turno, streaming testuale opzionale separato dalle tool call e messaggi di progresso statici nella lingua UI legati a fasi osservabili; la CLI mostra la bozza validata e non espone JSON parziale o reasoning. Nessuna chiamata LLM aggiuntiva per il progresso. Test simulati, incluso mock HTTP per fallback e cambi lingua, passati; la valutazione reale linguistica limitata ha dato esiti non conformi in parte dei casi. Runtime baseline mantenuto.
 
 ## Questioni aperte
 
@@ -101,6 +101,7 @@ Questi elementi descrivono implementazioni iniziali verificate dal coordinatore;
 - Per gli eventi, quali campi oltre a data e ora sono necessari per creare un evento? Come trattare informazioni mancanti diverse dal momento del promemoria? L’esempio del 31 ottobre resta privo di anno, durata e luogo effettivi.
 - Come definire N promemoria per evento e il flusso per aggiungerli o modificarli?
 - Quali informazioni essenziali devono essere conservate nel contesto personale e come devono essere aggiornate? I dettagli di consenso e gestione dei dati non sono stati specificati.
+- Come migliorare e rivalutare la selezione della lingua nel prompt senza introdurre regressioni semantiche? La prova reale attuale è circoscritta al modello e alla configurazione indicati e non autorizza da sola un nuovo fix o la promozione del prompt candidato.
 - L’onboarding guidato sarà incluso in v1? Quali scelte o tag dovrebbe presentare?
 - I guardrail restano un tema futuro o il coordinatore porterà avanti la proposta di includerli già in v1? I comportamenti specifici sono da definire.
 - Come si stabilisce l’utilità dei feedback e chi può rivedere quelli filtrati dall’agente?

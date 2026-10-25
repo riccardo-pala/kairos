@@ -42,6 +42,8 @@ Nel backend il catalogo statico usa `Language`, `MessageCatalog` e `LocalizedTex
 
 L'adattatore Ollama usa `/api/chat` in modalità streaming NDJSON. `stream_advance` produce progressi localizzati per fasi effettive, testo opzionale in arrivo e un evento `completed` dopo la validazione della tool call; `advance` consuma lo stesso stream per i chiamanti sincroni rispetto al risultato. Progressi ed errori statici usano la lingua UI (`RequestContext.language`); testo generato e chiarimenti seguono la lingua della conversazione. I frame `tool_calls` sono raccolti come oggetti strutturati, gli arguments non vengono mostrati né interpretati come delta di testo, e il workflow richiede il frame terminale `done=true` prima di eseguire la chiamata. Il campo reasoning `thinking` non viene esposto. Il testo mostrato in streaming resta provvisorio: un'interruzione tardiva non aggiorna la bozza, ma può seguire testo già visibile.
 
+Il prompt compatto è stato confrontato con il baseline sul modello locale `qwen3:8b`, usando sei scenari sintetici. Ha ridotto le parole del 17%, ma non ha superato tutte le verifiche: in particolare ha introdotto un campo non richiesto nel caso di prompt injection, mentre entrambi i prompt hanno mostrato debolezze nel cambio lingua. Il runtime mantiene quindi il prompt baseline; la [valutazione](prompt-evaluation.md) riassume la scelta e il [report completo](../../backend/evals/results/qwen3-8b-prompt-comparison.md) contiene risultati ripetibili. Si tratta di un confronto singolo e ristretto, non di una garanzia generale di qualità o latenza.
+
 ## Primo esercizio hands-on
 
 1. Definire insieme i modelli Python della bozza e costruire due esempi equivalenti IT/EN senza chiamare un LLM.
