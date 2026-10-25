@@ -83,20 +83,20 @@ def render_table(doc, rows):
             paragraph.paragraph_format.keep_with_next = True
             inline(paragraph, f"{identifier}  {requirement}")
             paragraph = doc.add_paragraph()
-            inline(paragraph, f"**Stato**  {status}")
+            inline(paragraph, f"**Status**  {status}")
             for run in paragraph.runs:
                 run.font.size = Pt(10)
     elif rows[0][0] == "Area":
         for area, target, current, future in rows[1:]:
             doc.add_heading(area.replace(",", ""), level=2)
-            for label, content in (("Obiettivo", target), ("Disponibilità attuale", current), ("Evoluzione", future)):
+            for label, content in (("Goal", target), ("Current availability", current), ("Future work", future)):
                 inline(doc.add_paragraph(), f"**{label}**  {content}")
     else:
         table(doc, rows)
 
 
 def build(output, revision, updated):
-    source = ROOT / "docs/working/functional-requirements.md"
+    source = ROOT / "docs/functional/requirements.md"
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = Inches(8.5), Inches(11)
@@ -123,20 +123,20 @@ def build(output, revision, updated):
     cover.paragraph_format.space_before = Pt(35)
     cover.alignment = WD_ALIGN_PARAGRAPH.CENTER
     picture = cover.add_run().add_picture(str(ROOT / "assets/logo.png"), width=Inches(2.5))
-    picture._inline.docPr.set("descr", "Logo Kairos")
+    picture._inline.docPr.set("descr", "Kairos logo")
     p = doc.add_paragraph("Kairos", style="Title")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p = doc.add_paragraph("Visione del prodotto e requisiti funzionali", style="Subtitle")
+    p = doc.add_paragraph("Product Vision and Functional Requirements", style="Subtitle")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(30)
-    p = doc.add_paragraph("Assistente personale per chi procrastina")
+    p = doc.add_paragraph("A personal assistant for people who procrastinate")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p = doc.add_paragraph("Presentazione del prodotto e perimetro della prima prova di concetto")
+    p = doc.add_paragraph("Product overview and first proof-of-concept scope")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(35)
-    months = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")
+    months = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
     date_label = f"{updated.day} {months[updated.month - 1]} {updated.year}"
-    for text in (f"Versione {revision}", date_label, "Android  |  Italiano e inglese"):
+    for text in (f"Revision {revision}", date_label, "Android  |  English and Italian"):
         p = doc.add_paragraph(text)
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_page_break()
@@ -156,16 +156,16 @@ def build(output, revision, updated):
     while i < len(lines):
         line = lines[i].strip()
         i += 1
-        if not line or line.startswith("# ") or line.startswith("**Stato del documento:"):
+        if not line or line.startswith("# ") or line.startswith("**Document status:"):
             continue
         if line.startswith("## "):
             heading = line[3:]
-            if heading == "Gestione del documento":
+            if heading == "Document management":
                 break  # Internal publishing policy is outside the stakeholder report.
             section_number += 1
-            heading = {"Sintesi per stakeholder": "Sintesi executive", "Perimetro: POC e sviluppi futuri": "Perimetro della POC e sviluppi futuri", "Problema, utenti e valore atteso": "Problema utenti e valore atteso"}.get(heading, heading)
+            heading = {"Executive summary": "Executive summary", "Proof-of-concept scope and future work": "Proof-of-concept scope and future work"}.get(heading, heading)
             paragraph = doc.add_heading(f"{section_number}  {heading}", level=1)
-            if heading in ("Requisiti funzionali", "Scelte aperte"):
+            if heading in ("Functional requirements", "Open questions"):
                 paragraph.paragraph_format.page_break_before = True
         elif line.startswith("|"):
             rows = []
@@ -191,8 +191,8 @@ def build(output, revision, updated):
                 paragraph = doc.add_paragraph()
             inline(paragraph, line)
 
-    doc.core_properties.title = "Kairos Visione del prodotto e requisiti funzionali"
-    doc.core_properties.subject = "Presentazione del prodotto e perimetro funzionale"
+    doc.core_properties.title = "Kairos Product Vision and Functional Requirements"
+    doc.core_properties.subject = "Product overview and proof-of-concept scope"
     doc.core_properties.author = "Kairos"
     doc.core_properties.version = revision
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -202,8 +202,8 @@ def build(output, revision, updated):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "docs/requirements/Kairos_Requisiti_Funzionali.docx")
-    parser.add_argument("--revision", default="0.1")
-    parser.add_argument("--date", type=date.fromisoformat, default=date(2026, 10, 24))
+    parser.add_argument("--output", type=Path, default=ROOT / "docs/functional/Kairos_Functional_Requirements.docx")
+    parser.add_argument("--revision", default="0.3")
+    parser.add_argument("--date", type=date.fromisoformat, default=date(2026, 10, 25))
     args = parser.parse_args()
     build(args.output, args.revision, args.date)
