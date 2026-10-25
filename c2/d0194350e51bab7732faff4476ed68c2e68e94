@@ -1,0 +1,26 @@
+backend/tests/test_providers.py
+  s_bff12bdde01e92::t_78424ebaaddd22 204
+  s_bff12bdde01e92::t_aa08bd130b35eb 8,200-203,205-206
+  s_bff12bdde01e92::t_9232c1905740ef 207-208
+backend/src/kairos/providers.py
+  s_bff12bdde01e92::t_d048c96fe8fe25 57-59
+  s_bff12bdde01e92::t_f124268a7282de 23-25,52-56,60-61
+backend/tests/test_workflow.py
+  s_bff12bdde01e92::t_985a80ce31edd3 56-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c2d0194350e51bab7732faff4476ed68c2e68e94",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
