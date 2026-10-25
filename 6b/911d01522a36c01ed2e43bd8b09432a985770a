@@ -1,0 +1,37 @@
+docs/technology/prompt-evaluation.md
+  s_bff12bdde01e92::t_0151caa2ef1ff8 1-9
+README.md
+  s_bff12bdde01e92::t_8cdc96e46ec48e 10,21
+  s_bff12bdde01e92::t_08623730606b06 3,5,7,9,11-12,16-18
+docs/functional/requirements.md
+  s_bff12bdde01e92::t_623de93dcbf697 1-98
+docs/functional/decision-log.md
+  s_bff12bdde01e92::t_7e87cd5840fb23 1-87
+scripts/build_functional_document.py
+  s_bff12bdde01e92::t_df61014cb74916 86,92
+  s_bff12bdde01e92::t_7396d941592e17 99,126,129,132,134,137,139,159,163,166,168,194-195,205-207
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_8142dbbcf81c47 1-59
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_4d4987b3f8c769 1-64
+docs/functional/product-proposals.md
+  s_bff12bdde01e92::t_60b8f1805793c2 1-74
+docs/technology/development-workflow.md
+  s_bff12bdde01e92::t_b4538a6ad10936 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6b911d01522a36c01ed2e43bd8b09432a985770a",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
