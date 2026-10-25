@@ -39,6 +39,8 @@
   "cli.debug_model_response": {"it": "DEBUG · RISPOSTA OLLAMA", "en": "DEBUG · OLLAMA RESPONSE"},
   "cli.debug_model_text": {"it": "TESTO MODELLO (provvisorio)", "en": "MODEL TEXT (provisional)"},
   "cli.debug_json": {"it": "STATO JSON DI DEBUG", "en": "DEBUG JSON STATE"},
+  "api.internal_error": {"it": "Errore interno durante la preparazione della bozza.", "en": "An internal error occurred while preparing the draft."},
+  "api.demo_limit": {"it": "La modalità demo non interpreta nuovi messaggi. Configura KAIROS_OLLAMA_MODEL per usare Ollama.", "en": "Demo mode does not interpret new messages. Set KAIROS_OLLAMA_MODEL to use Ollama."},
   "cli.think_help": {"it": "Abilita il ragionamento interno del modello (non viene mostrato)", "en": "Enable model reasoning generation (it is not displayed)"},
   "cli.draft_summary": {"it": "Dati della bozza:", "en": "Draft details:"},
   "cli.event_title": {"it": "Impegno", "en": "Event"},

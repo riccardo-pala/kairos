@@ -54,6 +54,8 @@ class MessageId(StrEnum):
     CLI_DEBUG_MODEL_RESPONSE = "cli.debug_model_response"
     CLI_DEBUG_MODEL_TEXT = "cli.debug_model_text"
     CLI_DEBUG_JSON = "cli.debug_json"
+    API_INTERNAL_ERROR = "api.internal_error"
+    API_DEMO_LIMIT = "api.demo_limit"
     CLI_THINK_HELP = "cli.think_help"
     CLI_DRAFT_SUMMARY = "cli.draft_summary"
     CLI_EVENT_TITLE = "cli.event_title"

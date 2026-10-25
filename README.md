@@ -4,7 +4,7 @@ Assistente personale per chi procrastina: trasformare intenzioni in piccoli pass
 
 ## Stato attuale
 
-Il backend Python implementa il primo workflow di preparazione di una bozza di evento: dati strutturati, attività prima/dopo, più promemoria, chiarimenti e aggiornamenti su più turni. La data, l'ora locale e il fuso restano campi distinti; un orario mancante non viene rappresentato come mezzanotte. Il risultato è una bozza in memoria pronta alla revisione. Non sono ancora implementati salvataggio, notifiche, API HTTP, voce e app mobile.
+Il backend Python implementa il primo workflow di preparazione di una bozza di evento: dati strutturati, attività prima/dopo, più promemoria, chiarimenti e aggiornamenti su più turni. La data, l'ora locale e il fuso restano campi distinti; un orario mancante non viene rappresentato come mezzanotte. Il risultato è una bozza in memoria pronta alla revisione. È disponibile un primo endpoint HTTP per il drafting, senza persistenza. Salvataggio, notifiche, voce e app mobile non sono ancora implementati.
 
 La prima POC si concentra sul percorso da un impegno alle azioni necessarie per affrontarlo. La lista della spesa è esclusa dalla POC: rimane un'idea futura, da rivalutare solo con un legame chiaro con il supporto a chi procrastina, evitando di accumulare funzionalità scollegate.
 
@@ -18,6 +18,24 @@ uv sync --dev
 uv run pytest
 uv run python -m kairos
 ```
+
+Per avviare l'API locale:
+
+```bash
+cd backend
+uv sync --dev
+uv run uvicorn kairos.api:app --reload --host 127.0.0.1 --port 8000
+```
+
+Senza `KAIROS_OLLAMA_MODEL`, l'API usa una risposta dimostrativa deterministica che non interpreta il testo. Per collegare un modello già installato, impostare `KAIROS_OLLAMA_MODEL` e, se necessario, `KAIROS_OLLAMA_BASE_URL` (default `http://localhost:11434`) prima di avviare Uvicorn. `GET /health` verifica che il servizio risponda. `POST /workflow/turn` riceve un messaggio e il contesto:
+
+```bash
+curl -N http://127.0.0.1:8000/workflow/turn \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Devo andare dal meccanico domani","language":"it","timezone":"Europe/Rome"}'
+```
+
+La risposta è SSE: `progress` indica le fasi, `text` contiene testo opzionale del modello e `completed` consegna la nuova `state`. Il client deve conservare quella bozza e inviarla nel campo `state` del turno successivo; se il campo è omesso, inizia una bozza vuota. Un errore di workflow viene trasmesso come evento `error`. L'istante `now` è creato dal server usando il fuso validato della richiesta. Il ciclo di vita dell'API apre un `httpx.AsyncClient` condiviso per Ollama all'avvio e lo chiude allo shutdown. La documentazione OpenAPI locale è disponibile su `/docs`.
 
 La demo usa due tool call predefinite e non chiama un modello: dimostra la conservazione dello stato fra richiesta iniziale e scelta dei promemoria. Non interpreta frasi arbitrarie. La CLI mostra un riepilogo leggibile della bozza, la domanda o lo stato pronto, ma non il testo libero prodotto dal modello. Per la sessione Ollama, le opzioni `--debug-model-io`, `--debug-draft-json` e `--debug-validation` attivano separatamente le rispettive diagnostiche; `--debug` è una scorciatoia che le abilita tutte. L'I/O del modello (payload effettivamente inviato e risposta ricomposta dai frame di streaming, con il conteggio dei frame e senza il campo `thinking`) viene scritto una volta su stderr al termine dello stream; il JSON della bozza resta su stdout e gli errori tecnici di validazione su stderr. Questi log possono contenere messaggi utente, dati personali e istruzioni del prompt: abilitarli solo quando serve e proteggere l'output raccolto. I colori diagnostici sono usati solo nei terminali compatibili e rispettano `NO_COLOR`; non si avvia il debugger di VS Code. `uv sync` genera anche il lockfile; conservarlo in Git per condividere le versioni risolte. L'ambiente `.venv` rimane locale.
 
