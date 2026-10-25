@@ -1,0 +1,45 @@
+backend/src/kairos/models/event.py
+  s_bff12bdde01e92::t_bef777157b4fa7 1,24-25,31-37
+backend/src/kairos/i18n.py
+  s_bff12bdde01e92::t_3b88ace601fe9b 18-19
+  s_bff12bdde01e92::t_50381edd3b14da 48-49
+backend/src/kairos/providers.py
+  s_bff12bdde01e92::t_654ab31e1e6da3 33-41
+backend/tests/test_event.py
+  s_bff12bdde01e92::t_aa0df109756615 8-10,12-18,20
+  s_bff12bdde01e92::t_f317b40451ac81 21-25,33-39
+  s_bff12bdde01e92::t_099a692f1198b1 26-32
+  s_bff12bdde01e92::t_1074612b8931aa 19
+backend/evals/run_event_prompt_benchmark.py
+  s_bff12bdde01e92::t_d5518de5bd65d3 1-5,400-408
+backend/src/kairos/__main__.py
+  s_bff12bdde01e92::t_3fbc6780c7d6a6 21,23-24,106-107
+  s_bff12bdde01e92::t_5f81db1f7a0118 22
+README.md
+  s_bff12bdde01e92::t_bc7bb79ba8ed47 7,34
+backend/tests/test_workflow.py
+  s_bff12bdde01e92::t_c4088d7e7e74c8 221
+  s_bff12bdde01e92::t_c98bed69b17cff 36,61,68-83,97-133,191-193,197,204
+  s_bff12bdde01e92::t_87ac493ca5ad38 84-96
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_304c6544114530 33-34
+  s_bff12bdde01e92::t_74a708fa2de0a4 3-4
+backend/src/kairos/workflow.py
+  s_bff12bdde01e92::t_80751bb22ba8ca 21,114-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c8f02b340131439a3801edaba855bfe033bd8e43",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
