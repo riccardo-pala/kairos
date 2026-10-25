@@ -2,6 +2,8 @@
 
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Callable
 
 import httpx
 from pydantic import ValidationError
@@ -49,10 +51,43 @@ This tool only prepares a draft for review. It does not create an event.
 """
 
 
+@dataclass(frozen=True)
+class OllamaMetrics:
+    total_duration: int | None = None
+    load_duration: int | None = None
+    prompt_eval_count: int | None = None
+    prompt_eval_cached_count: int | None = None
+    prompt_eval_duration: int | None = None
+    eval_count: int | None = None
+    eval_duration: int | None = None
+
+    @classmethod
+    def from_done_frame(cls, frame: dict) -> "OllamaMetrics":
+        names = cls.__dataclass_fields__
+        values = {}
+        for name in names:
+            value = frame.get(name)
+            values[name] = value if type(value) is int and value >= 0 else None
+        return cls(**values)
+
+
 class OllamaEventProvider:
-    def __init__(self, model: str, client: httpx.AsyncClient):
+    def __init__(
+        self,
+        model: str,
+        client: httpx.AsyncClient,
+        *,
+        system_prompt: str | None = None,
+        think: bool | None = None,
+        options: dict | None = None,
+        metrics_callback: Callable[[OllamaMetrics], None] | None = None,
+    ):
         self.model = model
         self.client = client
+        self.system_prompt = system_prompt if system_prompt is not None else SYSTEM_PROMPT
+        self.think = think
+        self.options = options
+        self.metrics_callback = metrics_callback
 
     async def stream_propose(
         self, message: str, state: EventWorkflowState, context: RequestContext, tools: list[dict]
@@ -61,7 +96,7 @@ class OllamaEventProvider:
             "model": self.model,
             "stream": True,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": self.system_prompt},
                 {
                     "role": "user",
                     "content": json.dumps(
@@ -80,6 +115,10 @@ class OllamaEventProvider:
             ],
             "tools": tools,
         }
+        if self.think is not None:
+            payload["think"] = self.think
+        if self.options is not None:
+            payload["options"] = self.options
         received_done = False
         try:
             async with self.client.stream("POST", "/api/chat", json=payload) as response:
@@ -115,6 +154,8 @@ class OllamaEventProvider:
                         raise ValueError("Ollama frame is missing a boolean done flag")
                     if done:
                         received_done = True
+                        if self.metrics_callback is not None:
+                            self.metrics_callback(OllamaMetrics.from_done_frame(frame))
                         break
             if not received_done:
                 raise ValueError("Ollama stream ended before its done frame")

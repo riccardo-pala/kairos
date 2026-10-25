@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 import pytest
 
-from kairos.providers import OllamaEventProvider
+from kairos.providers import OllamaEventProvider, OllamaMetrics
 from kairos.contracts import EventWorkflowState, RequestContext, WorkflowError
 from kairos.tools import event_tools
 
@@ -77,6 +77,53 @@ def test_provider_error_does_not_expose_response_body():
 def test_invalid_ndjson_frame_fails_closed():
     with pytest.raises(WorkflowError):
         collect_provider(lambda request: httpx.Response(200, content=b"{not-json}\n"))
+
+
+def test_final_frame_metrics_keep_missing_values_null_and_zero_counts():
+    metrics = OllamaMetrics.from_done_frame({
+        "done": True, "total_duration": 15, "prompt_eval_count": 0,
+        "prompt_eval_cached_count": True, "eval_count": 3,
+    })
+    assert metrics.total_duration == 15
+    assert metrics.prompt_eval_count == 0
+    assert metrics.prompt_eval_cached_count is None
+    assert metrics.eval_count == 3
+    assert metrics.load_duration is None
+    assert metrics.prompt_eval_duration is None
+    assert metrics.eval_duration is None
+
+
+def test_provider_reports_only_metrics_from_the_terminal_frame():
+    captured = []
+
+    def handler(request):
+        return ndjson(
+            {"message": {"content": "A little text"}, "done": False, "prompt_eval_count": 999},
+            {"message": {"tool_calls": [{"function": {
+                "name": "ask_event_clarification", "arguments": {"question": "Which date?"},
+            }}]}, "done": True, "prompt_eval_count": 25, "eval_count": 8, "total_duration": 1000},
+        )
+
+    async def run():
+        async with httpx.AsyncClient(
+            base_url="http://localhost:11434", transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OllamaEventProvider("test-model", client, metrics_callback=captured.append)
+            context = RequestContext(
+                now=datetime.fromisoformat("2026-10-24T12:00:00+02:00"), timezone="Europe/Rome"
+            )
+            events = [event async for event in provider.stream_propose(
+                "A date", EventWorkflowState(), context,
+                event_tools().schemas(EventWorkflowState()),
+            )]
+            assert any(event.kind == "tool_call" for event in events)
+
+    asyncio.run(run())
+    assert len(captured) == 1
+    assert captured[0].prompt_eval_count == 25
+    assert captured[0].eval_count == 8
+    assert captured[0].total_duration == 1000
+    assert captured[0].load_duration is None
 
 
 def test_unsupported_fallback_persists_neutral_reply_and_explicit_language_request_takes_priority():
