@@ -1,0 +1,89 @@
+docs/usage/local-infrastructure.md
+  s_bff12bdde01e92::t_ae769ed44a797a 33,41,43
+  s_bff12bdde01e92::t_fd2f8f7802d5f2 15-16
+README.md
+  s_bff12bdde01e92::t_7069c41f7e50b9 9-10
+backend/src/kairos/tools.py
+  s_bff12bdde01e92::t_186c893fb9372c 185-188,234
+  s_bff12bdde01e92::t_8509e7d1f9e8bc 139-140,153,155,158,163-167,208-211
+  s_bff12bdde01e92::t_298a267b234c64 8-9,80-89,133
+  s_bff12bdde01e92::t_df2fd79084fe7b 3-4,57,93,95-98,100-107,134-138,141-152,154,156-157,159-162,168,173,175-184,189-207,212-215,218-220,223-233,235-236
+  s_bff12bdde01e92::t_69eb5e9e83cd93 119,217,221-222
+  s_bff12bdde01e92::t_da8845eb4bfd4b 216
+backend/src/kairos/providers.py
+  s_bff12bdde01e92::t_d792cf0c2df6cc 32-41,87-89
+  s_bff12bdde01e92::t_69eb5e9e83cd93 146-148,159
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_d792cf0c2df6cc 11-14
+  s_bff12bdde01e92::t_8509e7d1f9e8bc 15
+  s_bff12bdde01e92::t_3f1f5b190c3bf8 66
+backend/src/kairos/static/playground.css
+  s_bff12bdde01e92::t_7892a09dfd6e49 1-19,21-72,74-95,100-103,105-175
+  s_bff12bdde01e92::t_131170b9cf5c1c 73
+  s_bff12bdde01e92::t_82d9ffb93e7757 96-99
+  s_bff12bdde01e92::t_fd2f8f7802d5f2 20,104
+backend/src/kairos/static/playground.js
+  s_bff12bdde01e92::t_d4698b3130d21c 210,240
+  s_bff12bdde01e92::t_7892a09dfd6e49 1-7,9,11-26,28-29,31-42,44-52,67-91,93-111,138-194,197-207,211-224,226-232,235-238,241-250,252-260,263-271,273-293,299,303-307,309-313,315-326,328-481
+  s_bff12bdde01e92::t_5cc1add9813482 195-196,262
+  s_bff12bdde01e92::t_82d9ffb93e7757 10,30,92,112-124,126-134,136-137,233-234,251
+  s_bff12bdde01e92::t_945340ee1daaa8 8,43,53-66,209,239,261,272,294-298,300-301,308,314,327
+  s_bff12bdde01e92::t_510d89dfe54268 125,135,208
+  s_bff12bdde01e92::t_01ac85baacdf82 302
+  s_bff12bdde01e92::t_dfeeb480df60f2 27,225
+compose.yaml
+  s_bff12bdde01e92::t_ae769ed44a797a 26-28
+backend/src/kairos/i18n.py
+  s_bff12bdde01e92::t_8509e7d1f9e8bc 30
+  s_bff12bdde01e92::t_d792cf0c2df6cc 27-29
+backend/src/kairos/__main__.py
+  s_bff12bdde01e92::t_3f1f5b190c3bf8 148-150,152
+  s_bff12bdde01e92::t_bb61cabb26c48d 151
+backend/src/kairos/api.py
+  s_bff12bdde01e92::t_d4698b3130d21c 48
+  s_bff12bdde01e92::t_44b9b678ff2e3a 6,9-11,18-20,45-46,50-51,56-69,83,86,90-91,263-267,275,302-303,337-347,349-352
+  s_bff12bdde01e92::t_ae769ed44a797a 129-131
+  s_bff12bdde01e92::t_44e12f09b2bae9 276-277,281,301
+  s_bff12bdde01e92::t_f719c85b95ebc3 348
+  s_bff12bdde01e92::t_d792cf0c2df6cc 155-158,503-505
+  s_bff12bdde01e92::t_95281d832f1880 49
+  s_bff12bdde01e92::t_34be00cee5797a 353
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_b3e75f9b4c2808 43
+  s_bff12bdde01e92::t_ae769ed44a797a 57
+  s_bff12bdde01e92::t_fd2f8f7802d5f2 59
+  s_bff12bdde01e92::t_1996a4c7481e18 58
+backend/src/kairos/models/event.py
+  s_bff12bdde01e92::t_df2fd79084fe7b 3,11
+backend/src/kairos/workflow.py
+  s_bff12bdde01e92::t_b3e75f9b4c2808 79-80,174,202-212
+  s_bff12bdde01e92::t_298a267b234c64 7,76,144,170
+  s_bff12bdde01e92::t_df2fd79084fe7b 5-6,71-75,81-85,112-113,120,122-124,134,139-143,148,155-169,171-173,175-194,200,213-239
+  s_bff12bdde01e92::t_8509e7d1f9e8bc 195-199,201
+  s_bff12bdde01e92::t_c06443f6cf8c99 240
+backend/src/kairos/static/index.html
+  s_bff12bdde01e92::t_7892a09dfd6e49 1-87,89-158
+  s_bff12bdde01e92::t_82d9ffb93e7757 88
+backend/Dockerfile
+  s_bff12bdde01e92::t_44e12f09b2bae9 21
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_fd2f8f7802d5f2 56-59
+backend/src/kairos/contracts.py
+  s_bff12bdde01e92::t_df2fd79084fe7b 5,26,40,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a6b518fa44ae56e538da7c2d8678bed071923a56",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
