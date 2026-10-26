@@ -71,6 +71,8 @@ The local OpenAPI page is available at `http://127.0.0.1:8000/docs`.
 
 With Docker Compose running, open `http://127.0.0.1:8000/`. The page creates and chats through a session, displays SSE progress/text/completed/error events, shows the validated draft, and lets you list and activate the built-in provider profiles. Its diagnostics panel reads recent structured API, connector, and workflow logs from a bounded in-memory buffer and can filter by the request ID returned with each turn. The buffer is local to the API process and clears on restart. The playground and its admin endpoints have no authentication; keep them on localhost. Logs may contain prompts, user messages, and session data.
 
+Contextual choices appear in the conversation. Selecting one opens its structured widget while free-text chat remains available. Duration and reminder widgets accept a number and a unit: minutes, hours, or days. The draft displays these intervals as days, hours, and minutes, omitting zero-valued units. A zero-offset reminder is shown as occurring at the event start. Structured actions still send normalized minute values to the API.
+
 ### Select a model provider
 
 The database migration installs three built-in profiles: deterministic **Demo** (active initially), **Local Ollama (Qwen 3 8B)** using `qwen3:8b`, and **Hugging Face (Qwen3 8B)** using `Qwen/Qwen3-8B`. The Hugging Face router selects a compatible inference provider automatically from the bare model ID. These profiles are fixed in this prototype; the local admin API only lists them and activates one.

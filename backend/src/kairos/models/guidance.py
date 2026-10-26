@@ -84,6 +84,11 @@ def build_draft_guidance(draft: EventDraft, language: Language) -> DraftGuidance
             ))
 
     if draft.title or draft.start_date or draft.start_time:
+        time_units = [
+            GuidanceOption(value="minutes", label=translate(MessageId.GUIDANCE_MINUTES, language), minutes=1),
+            GuidanceOption(value="hours", label=translate(MessageId.GUIDANCE_HOURS, language), minutes=60),
+            GuidanceOption(value="days", label=translate(MessageId.GUIDANCE_DAYS, language), minutes=1440),
+        ]
         suggestions.append(DraftSuggestion(
             id="add_task",
             label=translate(MessageId.GUIDANCE_ACTIVITY, language),
@@ -116,6 +121,7 @@ def build_draft_guidance(draft: EventDraft, language: Language) -> DraftGuidance
                 input_type="duration",
                 placeholder=translate(MessageId.GUIDANCE_PLACEHOLDER_DURATION, language),
                 submit_label=translate(MessageId.GUIDANCE_SAVE, language),
+                units=time_units,
             ))
         suggestions.append(DraftSuggestion(
             id="add_reminder",
@@ -124,11 +130,7 @@ def build_draft_guidance(draft: EventDraft, language: Language) -> DraftGuidance
             placeholder=translate(MessageId.GUIDANCE_PLACEHOLDER_REMINDER, language),
             submit_label=translate(MessageId.GUIDANCE_SAVE, language),
             clear_label=translate(MessageId.GUIDANCE_NO_REMINDERS, language),
-            units=[
-                GuidanceOption(value="minutes", label=translate(MessageId.GUIDANCE_MINUTES, language), minutes=1),
-                GuidanceOption(value="hours", label=translate(MessageId.GUIDANCE_HOURS, language), minutes=60),
-                GuidanceOption(value="days", label=translate(MessageId.GUIDANCE_DAYS, language), minutes=1440),
-            ],
+            units=time_units,
         ))
 
     return DraftGuidance(

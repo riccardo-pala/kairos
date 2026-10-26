@@ -3,26 +3,30 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f5f4ef">
-    <title>Kairos · Playground locale</title>
+    <meta name="theme-color" content="#f6f8ff">
+    <title>kAIros Playground</title>
     <link rel="stylesheet" href="/static/playground.css">
     <script src="/static/playground.js" defer></script>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Kairos playground, pagina iniziale">
-        <span class="brand-mark" aria-hidden="true">K</span>
-        <span><strong>Kairos</strong><small>Playground locale</small></span>
+      <a class="brand" href="/" aria-label="kAIros Playground, pagina iniziale">
+        <img class="brand-logo" src="/static/kairos-logo.png" alt="kAIros" width="96" height="96">
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="brand-product">Playground</span>
       </a>
-      <span class="local-badge"><span aria-hidden="true"></span> Solo sviluppo · localhost</span>
+      <div class="header-context">
+        <a class="header-link" href="#diagnostics-title">Diagnostica <span aria-hidden="true">↗</span></a>
+        <span class="local-badge"><span aria-hidden="true"></span> Ambiente locale</span>
+      </div>
     </header>
 
     <main class="page-shell">
       <section class="welcome-row" aria-labelledby="page-title">
         <div>
-          <p class="eyebrow">EVENT DRAFT WORKFLOW</p>
-          <h1 id="page-title">Dai forma a un impegno</h1>
-          <p class="intro">Scrivi cosa devi fare. Kairos raccoglie i dettagli e prepara una bozza da rivedere.</p>
+          <p class="eyebrow welcome-eyebrow"><span class="brand-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> IL TUO TEMPO, LE TUE IDEE</p>
+          <h1 id="page-title">Dai forma <span>al tuo tempo.</span></h1>
+          <p class="intro">Racconta il tuo impegno. kAIros raccoglie i dettagli,<br class="desktop-break"> tu scegli come completarli.</p>
         </div>
         <div class="session-controls card">
           <div class="control-grid">
@@ -49,7 +53,7 @@
         <section class="conversation-card card" aria-labelledby="conversation-title">
           <div class="section-heading conversation-heading">
             <div>
-              <p class="eyebrow">WORKFLOW</p>
+              <p class="eyebrow">IL TUO SPAZIO</p>
               <h2 id="conversation-title">Conversazione</h2>
             </div>
             <div class="stream-indicator" id="turn-status" role="status" aria-live="polite">
@@ -58,14 +62,16 @@
           </div>
           <div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions text">
             <div class="empty-state" id="conversation-empty">
-              <span class="empty-icon" aria-hidden="true">✳</span>
-              <strong>La sessione inizia qui</strong>
-              <p>Crea una sessione e scrivi un impegno, ad esempio: “Devo andare dal meccanico domani”.</p>
+              <span class="empty-logo-wrap" aria-hidden="true"><img src="/static/kairos-logo.png" alt="" width="164" height="164"></span>
+              <strong>Da un pensiero a un impegno.</strong>
+              <p>Crea una sessione, poi racconta cosa hai in programma.</p>
+              <p class="empty-example">“Devo andare dal meccanico domani”</p>
             </div>
+            <div id="chat-guidance" class="chat-guidance hidden" aria-live="polite"></div>
           </div>
           <form id="turn-form" class="composer">
             <label class="sr-only" for="message-input">Il tuo messaggio</label>
-            <textarea id="message-input" rows="2" maxlength="8000" placeholder="Scrivi un impegno o rispondi alla domanda…" disabled required></textarea>
+            <textarea id="message-input" rows="2" maxlength="8000" placeholder="Scrivi un messaggio o aggiungi altri dettagli…" disabled required></textarea>
             <div class="composer-footer">
               <span class="hint">Invio per spedire · Maiusc+Invio per andare a capo</span>
               <button class="button button-primary" id="send-message" type="submit" disabled>
@@ -79,20 +85,11 @@
           <section class="card draft-card" aria-labelledby="draft-title">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">STATO VALIDATO</p>
+                <p class="eyebrow">I TUOI DETTAGLI</p>
                 <h2 id="draft-title">Bozza corrente</h2>
               </div>
               <span id="draft-status" class="state-pill">In attesa</span>
             </div>
-            <p id="current-question" class="question-box hidden"></p>
-            <section id="draft-guidance" class="draft-guidance hidden" aria-live="polite">
-              <div id="required-missing" class="required-missing hidden">
-                <strong id="required-title"></strong>
-                <span id="required-fields"></span>
-              </div>
-              <div id="draft-suggestions" class="draft-suggestions"></div>
-            </section>
-            <div id="task-removal-options" class="task-removal-options hidden" aria-label="Attività da rimuovere"></div>
             <dl id="draft-fields" class="draft-fields">
               <div><dt>Titolo</dt><dd data-field="title">—</dd></div>
               <div><dt>Data</dt><dd data-field="start_date">—</dd></div>
@@ -108,7 +105,7 @@
           <section class="card provider-card" aria-labelledby="provider-title">
             <div class="section-heading compact-heading">
               <div>
-                <p class="eyebrow">MODELLO</p>
+                <p class="eyebrow">CONFIGURAZIONE</p>
                 <h2 id="provider-title">Provider attivo</h2>
               </div>
               <button class="icon-button" id="refresh-profiles" type="button" aria-label="Aggiorna elenco provider" title="Aggiorna elenco">↻</button>
@@ -138,7 +135,7 @@
       <section class="card diagnostics-card" aria-labelledby="diagnostics-title">
         <div class="section-heading diagnostics-heading">
           <div>
-            <p class="eyebrow">PROCESSO LOCALE · DATI SENSIBILI</p>
+            <p class="eyebrow">DIETRO LA CONVERSAZIONE</p>
             <h2 id="diagnostics-title">Diagnostica</h2>
             <p class="section-description">Log recenti API, workflow e connettore. Restano in memoria solo finché il processo è attivo.</p>
           </div>
@@ -160,6 +157,6 @@
       </section>
     </main>
 
-    <footer class="footer">Kairos · prototipo locale per lo sviluppo del workflow</footer>
+    <footer class="footer"><strong>kAIros Playground</strong><span>Uno spazio per sperimentare, un impegno alla volta.</span></footer>
   </body>
 </html>

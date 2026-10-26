@@ -79,7 +79,7 @@
   "guidance.placeholder.date": {"it": "Seleziona la data", "en": "Choose a date"},
   "guidance.placeholder.time": {"it": "Seleziona l'ora", "en": "Choose a time"},
   "guidance.placeholder.location": {"it": "Nome del luogo o indirizzo", "en": "Place name or address"},
-  "guidance.placeholder.duration": {"it": "Minuti", "en": "Minutes"},
+  "guidance.placeholder.duration": {"it": "Quanto dura?", "en": "How long?"},
   "guidance.placeholder.reminder": {"it": "Quanto tempo prima?", "en": "How long before?"},
   "guidance.save": {"it": "Salva", "en": "Save"},
   "guidance.no_reminders": {"it": "Nessun promemoria", "en": "No reminders"},

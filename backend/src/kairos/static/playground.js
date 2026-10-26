@@ -8,6 +8,9 @@ const state = {
   progressNode: null,
   requestId: "",
   selectedTaskId: null,
+  activeSuggestionId: null,
+  guidanceValues: {},
+  pendingSuggestionId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -28,7 +31,7 @@ function setBusy(busy, message = "") {
   sendButton.disabled = busy || !state.session;
   messageInput.disabled = busy || !state.session;
   document.querySelectorAll(".task-removal-option").forEach((button) => { button.disabled = busy; });
-  document.querySelectorAll(".draft-suggestion button, .draft-suggestion input, .draft-suggestion select").forEach((control) => { control.disabled = busy; });
+  document.querySelectorAll(".chat-guidance button, .chat-guidance input, .chat-guidance select").forEach((control) => { control.disabled = busy; });
   turnStatus.classList.toggle("busy", busy);
   const label = turnStatus.querySelector("span:last-child");
   label.textContent = message || (busy ? "In corso…" : "In attesa");
@@ -41,12 +44,12 @@ function addMessage(role, text, kind = "") {
   article.className = `message ${role}${kind ? ` ${kind}` : ""}`;
   const meta = document.createElement("p");
   meta.className = "message-meta";
-  meta.textContent = role === "user" ? "Tu" : (kind === "error" ? "Errore del workflow" : kind === "progress" ? "Stato del turno" : "Kairos");
+  meta.textContent = role === "user" ? "Tu" : (kind === "error" ? "Errore del workflow" : kind === "progress" ? "Stato del turno" : "kAIros");
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
   bubble.textContent = text;
   article.append(meta, bubble);
-  conversation.append(article);
+  conversation.insertBefore(article, $("#chat-guidance"));
   conversation.scrollTop = conversation.scrollHeight;
   return bubble;
 }
@@ -65,20 +68,39 @@ function clearProgressMessage() {
   state.progressNode = null;
 }
 
-function formatValue(value) {
+function formatDuration(totalMinutes, language = state.session?.language || "it") {
+  const labels = language === "it"
+    ? [["giorno", "giorni"], ["ora", "ore"], ["minuto", "minuti"]]
+    : [["day", "days"], ["hour", "hours"], ["minute", "minutes"]];
+  const parts = [
+    Math.floor(totalMinutes / 1440),
+    Math.floor((totalMinutes % 1440) / 60),
+    totalMinutes % 60,
+  ];
+  return parts.flatMap((amount, index) => amount > 0
+    ? [`${amount} ${labels[index][amount === 1 ? 0 : 1]}`]
+    : []).join(" ");
+}
+
+function formatReminder(minutes, language = state.session?.language || "it") {
+  if (minutes === 0) return language === "it" ? "All’inizio dell’impegno" : "At the start of the event";
+  return `${formatDuration(minutes, language)} ${language === "it" ? "prima" : "before"}`;
+}
+
+function formatValue(value, field) {
   if (value === null || value === undefined || value === "") return "—";
   if (Array.isArray(value)) {
     if (!value.length) return "Nessuna";
     return value.map((item) => {
       if (typeof item === "object" && item !== null) {
         if ("description" in item) return `${item.description} (${item.timing})`;
-        if ("minutes_before" in item) return `${item.minutes_before} min prima`;
+        if ("minutes_before" in item) return formatReminder(item.minutes_before);
       }
       return String(item);
     }).join("\n");
   }
   if (typeof value === "object") return JSON.stringify(value, null, 2);
-  if (Number.isInteger(value) && value > 0 && value < 10000) return `${value} min`;
+  if (field === "duration_minutes") return formatDuration(value);
   return String(value);
 }
 
@@ -87,11 +109,7 @@ function renderSession(session) {
   $("#session-id").textContent = session.id;
   $("#draft-status").textContent = session.state.status === "ready_for_review" ? "Pronta da rivedere" : "In raccolta";
   $("#draft-status").classList.toggle("ready", session.state.status === "ready_for_review");
-  const question = $("#current-question");
-  question.textContent = session.state.question || "";
-  question.classList.toggle("hidden", !session.state.question);
   renderGuidance(session);
-  renderTaskRemovalOptions(session.state);
   const draft = session.state.draft;
   const values = {
     title: draft.title,
@@ -104,144 +122,266 @@ function renderSession(session) {
     reminders: draft.reminders,
   };
   document.querySelectorAll("[data-field]").forEach((element) => {
-    element.textContent = formatValue(values[element.dataset.field]);
+    element.textContent = formatValue(values[element.dataset.field], element.dataset.field);
   });
   sendButton.disabled = state.busy;
   messageInput.disabled = state.busy;
   if (!state.busy) messageInput.focus();
 }
 
-function renderGuidance(session) {
+function renderGuidance(session, focusSuggestionId = null) {
   const guidance = session.guidance || { required_missing: [], suggestions: [] };
-  const section = $("#draft-guidance");
-  const required = $("#required-missing");
+  const section = $("#chat-guidance");
   const requiredFields = guidance.required_missing || [];
-  $("#required-title").textContent = guidance.required_title || "";
-  $("#required-fields").textContent = requiredFields.map((field) => field.label).join(" · ");
-  required.classList.toggle("hidden", requiredFields.length === 0);
+  const suggestions = guidance.suggestions || [];
+  const pendingTasks = getPendingRemovalTasks(session.state);
+  section.replaceChildren();
 
-  const container = $("#draft-suggestions");
-  container.replaceChildren();
-  (guidance.suggestions || []).forEach((suggestion) => {
-    const form = document.createElement("form");
-    form.className = "draft-suggestion";
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const input = form.querySelector("input");
-      const value = input?.value.trim();
-      if (!value) return;
-      let action;
-      let display;
-      if (suggestion.id === "set_title") {
-        action = { type: "set_title", value: value };
-        display = suggestion.label + ": " + value;
-      } else if (suggestion.id === "set_date") {
-        action = { type: "set_date", value: value };
-        display = suggestion.label + ": " + value;
-      } else if (suggestion.id === "set_time") {
-        action = { type: "set_time", value: value };
-        display = suggestion.label + ": " + value;
-      } else if (suggestion.id === "set_location") {
-        action = { type: "set_location", value: value };
-        display = suggestion.label + ": " + value;
-      } else if (suggestion.id === "set_duration") {
-        const minutes = Number(value);
-        if (!Number.isSafeInteger(minutes) || minutes <= 0) return;
-        action = { type: "set_duration", value: minutes };
-        display = suggestion.label + ": " + minutes + " min";
-      } else if (suggestion.id === "add_reminder") {
-        const amount = Number(value);
-        const unit = form.querySelector("select");
-        const selected = suggestion.units.find((option) => option.value === unit.value);
-        if (!Number.isSafeInteger(amount) || amount < 0 || !selected || !Number.isSafeInteger(selected.minutes)) return;
-        const minutes = amount * selected.minutes;
-        if (!Number.isSafeInteger(minutes)) return;
-        action = { type: "add_reminder", minutes_before: minutes };
-        display = suggestion.label + ": " + amount + " " + selected.label + " " + (state.session.language === "it" ? "prima" : "before");
-      } else if (suggestion.id === "add_task") {
-        const timing = form.querySelector("select");
-        const selected = suggestion.timings.find((option) => option.value === timing.value);
-        if (!value || !selected) return;
-        action = { type: "add_task", description: value, timing: selected.value };
-        display = suggestion.label + " (" + selected.label.toLowerCase() + "): " + value;
+  if (!suggestions.length && !pendingTasks.length && !requiredFields.length) {
+    section.classList.add("hidden");
+    state.activeSuggestionId = null;
+    return;
+  }
+
+  const activeSuggestion = suggestions.find((suggestion) => suggestion.id === state.activeSuggestionId);
+  if (state.activeSuggestionId && !activeSuggestion) {
+    delete state.guidanceValues[state.activeSuggestionId];
+    state.activeSuggestionId = null;
+  }
+  section.classList.remove("hidden");
+
+  const panel = document.createElement("section");
+  panel.className = "chat-guidance-panel";
+  panel.setAttribute("aria-label", session.language === "it" ? "Opzioni per la bozza" : "Draft options");
+
+  const message = document.createElement("p");
+  message.className = "chat-guidance-copy";
+  const missing = requiredFields.map((field) => field.label).join(", ");
+  message.textContent = missing
+    ? (session.language === "it"
+      ? `${guidance.required_title}: ${missing}. Scegli un’opzione oppure continua a scrivere in chat.`
+      : `${guidance.required_title}: ${missing}. Choose an option or keep writing in the chat.`)
+    : (session.language === "it"
+      ? "Puoi aggiungere questi dettagli quando vuoi, oppure continuare a scrivere in chat."
+      : "Add any of these details whenever you like, or keep writing in the chat.");
+  panel.append(message);
+
+  const options = document.createElement("div");
+  options.className = "chat-guidance-options";
+  options.setAttribute("role", "group");
+  options.setAttribute("aria-label", session.language === "it" ? "Scegli un dettaglio" : "Choose a detail");
+  for (const suggestion of suggestions) {
+    const button = document.createElement("button");
+    const selected = suggestion.id === state.activeSuggestionId;
+    button.type = "button";
+    button.className = `chat-option${selected ? " selected" : ""}`;
+    button.textContent = guidanceOptionLabel(suggestion.id, session.language);
+    button.dataset.suggestionId = suggestion.id;
+    button.setAttribute("aria-expanded", String(selected));
+    button.setAttribute("aria-controls", `guidance-widget-${suggestion.id}`);
+    button.addEventListener("click", () => {
+      state.activeSuggestionId = selected ? null : suggestion.id;
+      renderGuidance(state.session, selected ? null : suggestion.id);
+      if (selected) {
+        section.querySelector(`[data-suggestion-id="${suggestion.id}"]`)?.focus();
       }
-      if (action) submitStructuredAction(action, display);
     });
+    options.append(button);
+  }
+  panel.append(options);
 
-    const label = document.createElement("label");
-    label.textContent = suggestion.label;
-    const input = document.createElement("input");
-    input.type = suggestion.input_type === "date" ? "date"
-      : suggestion.input_type === "time" ? "time"
-        : suggestion.input_type === "duration" || suggestion.input_type === "reminder" ? "number" : "text";
-    input.placeholder = suggestion.placeholder || "";
-    input.autocomplete = "off";
-    input.required = true;
-    if (input.type === "number") {
-      input.min = suggestion.input_type === "reminder" ? "0" : "1";
-      input.step = "1";
-    }
-    label.append(input);
-    form.append(label);
+  if (activeSuggestion) {
+    panel.append(renderSuggestionWidget(activeSuggestion, session.language));
+  }
+  if (pendingTasks.length) {
+    panel.append(renderTaskRemovalOptions(pendingTasks, session.language));
+  }
+  section.append(panel);
+  conversation.scrollTop = conversation.scrollHeight;
 
-    if (suggestion.input_type === "reminder" || suggestion.input_type === "task") {
-      const unit = document.createElement("select");
-      unit.setAttribute("aria-label", suggestion.label);
-      const options = suggestion.input_type === "task" ? suggestion.timings : suggestion.units;
-      (options || []).forEach((optionData) => {
-        const option = document.createElement("option");
-        option.value = optionData.value;
-        option.textContent = optionData.label;
-        unit.append(option);
-      });
-      form.append(unit);
-    }
+  if (focusSuggestionId) {
+    section.querySelector(`#guidance-widget-${focusSuggestionId} input`)?.focus();
+  }
+}
 
-    const save = document.createElement("button");
-    save.type = "submit";
-    save.className = "button button-secondary";
-    save.textContent = suggestion.submit_label;
-    form.append(save);
+function guidanceOptionLabel(id, language) {
+  const labels = {
+    it: {
+      set_title: "Scegli un titolo",
+      set_date: "Scegli una data",
+      set_time: "Scegli un orario",
+      set_location: "Aggiungi un luogo",
+      set_duration: "Imposta la durata",
+      add_task: "Descrivi attività prima o dopo",
+      add_reminder: "Aggiungi un promemoria",
+    },
+    en: {
+      set_title: "Choose a title",
+      set_date: "Choose a date",
+      set_time: "Choose a time",
+      set_location: "Add a location",
+      set_duration: "Set the duration",
+      add_task: "Describe an activity before or after",
+      add_reminder: "Add a reminder",
+    },
+  };
+  return labels[language]?.[id] || id;
+}
 
-    if (suggestion.clear_label) {
-      const clear = document.createElement("button");
-      clear.type = "button";
-      clear.className = "button button-quiet";
-      clear.textContent = suggestion.clear_label;
-      clear.addEventListener("click", () => submitStructuredAction(
-        { type: "clear_reminders" }, suggestion.clear_label
-      ));
-      form.append(clear);
-    }
+function renderSuggestionWidget(suggestion, language) {
+  const widget = document.createElement("section");
+  widget.id = `guidance-widget-${suggestion.id}`;
+  widget.className = `chat-guidance-widget suggestion-${suggestion.id}`;
 
-    container.append(form);
+  const heading = document.createElement("div");
+  heading.className = "chat-widget-heading";
+  const title = document.createElement("strong");
+  title.textContent = suggestion.label;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "button button-quiet chat-widget-close";
+  close.textContent = language === "it" ? "Chiudi" : "Close";
+  close.addEventListener("click", () => {
+    state.activeSuggestionId = null;
+    renderGuidance(state.session);
+    sectionFocusGuidanceOption(suggestion.id);
   });
-  section.classList.toggle("hidden", requiredFields.length === 0 && !guidance.suggestions?.length);
+  heading.append(title, close);
+  widget.append(heading);
+
+  const form = document.createElement("form");
+  form.className = "draft-suggestion";
+  const saved = state.guidanceValues[suggestion.id] || {};
+  const inputId = `guidance-input-${suggestion.id}`;
+  const label = document.createElement("label");
+  label.htmlFor = inputId;
+  label.textContent = suggestion.label;
+  const input = document.createElement("input");
+  input.id = inputId;
+  input.type = suggestion.input_type === "date" ? "date"
+    : suggestion.input_type === "time" ? "time"
+      : suggestion.input_type === "duration" || suggestion.input_type === "reminder" ? "number" : "text";
+  input.placeholder = suggestion.placeholder || "";
+  input.autocomplete = "off";
+  input.required = true;
+  input.value = saved.value || "";
+  if (input.type === "number") {
+    input.min = suggestion.input_type === "reminder" ? "0" : "1";
+    input.step = "1";
+  }
+  label.append(input);
+  form.append(label);
+
+  let choiceSelect = null;
+  if (["duration", "reminder", "task"].includes(suggestion.input_type)) {
+    choiceSelect = document.createElement("select");
+    const choices = suggestion.input_type === "task" ? suggestion.timings : suggestion.units;
+    const selectLabel = suggestion.input_type === "task"
+      ? (language === "it" ? "Quando" : "When")
+      : (language === "it" ? "Unità" : "Unit");
+    choiceSelect.setAttribute("aria-label", `${suggestion.label} · ${selectLabel.toLowerCase()}`);
+    for (const choice of choices || []) {
+      const option = document.createElement("option");
+      option.value = choice.value;
+      option.textContent = choice.label;
+      choiceSelect.append(option);
+    }
+    if (saved.choice) choiceSelect.value = saved.choice;
+    form.append(choiceSelect);
+  }
+
+  const rememberValue = () => {
+    state.guidanceValues[suggestion.id] = {
+      value: input.value,
+      ...(choiceSelect ? { choice: choiceSelect.value } : {}),
+    };
+  };
+  input.addEventListener("input", rememberValue);
+  choiceSelect?.addEventListener("change", rememberValue);
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const value = input.value.trim();
+    if (!value) return;
+    let action;
+    let display;
+    if (suggestion.id === "set_title" || suggestion.id === "set_location") {
+      action = { type: suggestion.id, value };
+      display = `${suggestion.label}: ${value}`;
+    } else if (suggestion.id === "set_date" || suggestion.id === "set_time") {
+      action = { type: suggestion.id, value };
+      display = `${suggestion.label}: ${value}`;
+    } else if (suggestion.id === "set_duration" || suggestion.id === "add_reminder") {
+      const amount = Number(value);
+      const selected = suggestion.units.find((option) => option.value === choiceSelect?.value);
+      if (!Number.isSafeInteger(amount) || amount < 0 || !selected || !Number.isSafeInteger(selected.minutes)) return;
+      const minutes = amount * selected.minutes;
+      if (!Number.isSafeInteger(minutes) || (suggestion.id === "set_duration" && minutes <= 0)) return;
+      action = suggestion.id === "set_duration"
+        ? { type: "set_duration", value: minutes }
+        : { type: "add_reminder", minutes_before: minutes };
+      display = `${suggestion.label}: ${suggestion.id === "set_duration"
+        ? formatDuration(minutes, language)
+        : formatReminder(minutes, language)}`;
+    } else if (suggestion.id === "add_task") {
+      const selected = suggestion.timings.find((option) => option.value === choiceSelect?.value);
+      if (!selected) return;
+      action = { type: "add_task", description: value, timing: selected.value };
+      display = `${suggestion.label} (${selected.label.toLowerCase()}): ${value}`;
+    }
+    if (action) submitStructuredAction(action, display, suggestion.id);
+  });
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "button button-secondary";
+  save.textContent = suggestion.submit_label;
+  form.append(save);
+  if (suggestion.clear_label) {
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "button button-quiet";
+    clear.textContent = suggestion.clear_label;
+    clear.addEventListener("click", () => submitStructuredAction(
+      { type: "clear_reminders" }, suggestion.clear_label, suggestion.id
+    ));
+    form.append(clear);
+  }
+  widget.append(form);
+  return widget;
+}
+
+function sectionFocusGuidanceOption(suggestionId) {
+  const button = Array.from($("#chat-guidance").querySelectorAll("[data-suggestion-id]"))
+    .find((option) => option.dataset.suggestionId === suggestionId);
+  button?.focus();
 }
 
 function defaultAssistantReply(session) {
-  const missing = session.guidance?.required_missing || [];
-  const language = session.language;
-  if (missing.length) {
-    const labels = missing.map((field) => field.label).join(", ");
-    return language === "it"
-      ? "Bozza aggiornata. Per completarla mancano: " + labels + ". Puoi aggiungerli quando vuoi o indicare altri dettagli."
-      : "Draft updated. Still needed: " + labels + ". Add them whenever you like, or provide any other details.";
+  if (session.guidance?.suggestions?.length) {
+    return session.language === "it"
+      ? "Bozza aggiornata. Scegli un’opzione qui sotto oppure continua a scrivere in chat."
+      : "Draft updated. Choose an option below or keep writing in the chat.";
   }
-  return language === "it"
-    ? "Bozza aggiornata. Puoi aggiungere altri dettagli quando vuoi."
-    : "Draft updated. You can add more details whenever you like.";
+  return session.language === "it"
+    ? "Bozza aggiornata. Puoi continuare a scrivere in chat per aggiungere altri dettagli."
+    : "Draft updated. Keep writing in the chat to add more details.";
 }
 
-function renderTaskRemovalOptions(workflowState) {
-  const container = $("#task-removal-options");
-  container.replaceChildren();
+function getPendingRemovalTasks(workflowState) {
   const pending = new Set(workflowState.pending_task_removal || []);
-  const tasks = (workflowState.draft.tasks || []).filter((task) => pending.has(task.id));
-  if (!tasks.length) {
-    container.classList.add("hidden");
-    return;
-  }
+  return (workflowState.draft.tasks || []).filter((task) => pending.has(task.id));
+}
+
+function renderTaskRemovalOptions(tasks, language) {
+  const container = document.createElement("div");
+  container.className = "task-removal-options";
+  container.setAttribute("role", "group");
+  container.setAttribute("aria-label", language === "it" ? "Attività da rimuovere" : "Activities to remove");
+  const heading = document.createElement("p");
+  heading.className = "task-removal-heading";
+  heading.textContent = language === "it" ? "Scegli l’attività da rimuovere" : "Choose the activity to remove";
+  container.append(heading);
   tasks.forEach((task, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -249,6 +389,7 @@ function renderTaskRemovalOptions(workflowState) {
     button.disabled = state.busy;
     button.dataset.taskId = task.id;
     button.textContent = `${index + 1}. ${task.description}`;
+    button.setAttribute("aria-label", language === "it" ? `Rimuovi attività: ${task.description}` : `Remove activity: ${task.description}`);
     button.addEventListener("click", () => {
       state.selectedTaskId = task.id;
       messageInput.value = `Rimuovi: ${task.description}`;
@@ -256,7 +397,7 @@ function renderTaskRemovalOptions(workflowState) {
     });
     container.append(button);
   });
-  container.classList.remove("hidden");
+  return container;
 }
 
 async function requestJson(url, options = {}) {
@@ -330,9 +471,14 @@ async function createSession() {
     state.assistantNode = null;
     state.assistantText = "";
     state.selectedTaskId = null;
+    state.activeSuggestionId = null;
+    state.guidanceValues = {};
+    state.pendingSuggestionId = null;
     clearProgressMessage();
     state.requestId = "";
-    conversation.replaceChildren(conversationEmpty);
+    conversation.replaceChildren(conversationEmpty, $("#chat-guidance"));
+    $("#chat-guidance").replaceChildren();
+    $("#chat-guidance").classList.add("hidden");
     conversationEmpty.classList.add("hidden");
     addMessage("assistant", `Sessione creata. ${body.language === "it" ? "Descrivi l’impegno che vuoi preparare." : "Describe the event you want to draft."}`);
     renderSession(body);
@@ -360,8 +506,9 @@ async function sendTurn(event) {
   await submitTurn({ message, ...(taskId ? { task_id: taskId } : {}) }, message);
 }
 
-function submitStructuredAction(action, displayMessage) {
+function submitStructuredAction(action, displayMessage, suggestionId) {
   if (!state.session || state.busy) return;
+  state.pendingSuggestionId = suggestionId || null;
   return submitTurn({ action: action }, displayMessage);
 }
 
@@ -403,6 +550,7 @@ async function submitTurn(requestBody, displayMessage) {
       await loadDiagnostics(state.requestId);
     }
   } catch (error) {
+    state.pendingSuggestionId = null;
     clearProgressMessage();
     if (assistantBubble) {
       assistantBubble.textContent = error.message;
@@ -446,6 +594,11 @@ async function consumeTurnWithLazyText(response, events, getBubble, setBubble) {
     if (name === "completed") {
       terminal = true;
       clearProgressMessage();
+      if (state.pendingSuggestionId) {
+        delete state.guidanceValues[state.pendingSuggestionId];
+        state.activeSuggestionId = null;
+        state.pendingSuggestionId = null;
+      }
       if (data.session) renderSession(data.session);
       const question = data.session?.state?.question;
       let bubble = getBubble();
@@ -458,6 +611,7 @@ async function consumeTurnWithLazyText(response, events, getBubble, setBubble) {
     if (name === "error") {
       terminal = true;
       failed = true;
+      state.pendingSuggestionId = null;
       clearProgressMessage();
       let bubble = getBubble();
       if (bubble) {
