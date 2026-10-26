@@ -68,9 +68,20 @@ This context does not add product requirements beyond the ideas and decisions at
 
 Earlier hypotheses included Flutter, FastAPI/Pydantic, SQLite, a replaceable model provider, and a low-cost local-first start. The user later asked to begin preparing a FastAPI layer. The first stateless HTTP endpoint is implemented; Flutter, SQLite, and a final provider strategy remain open.
 
-The backend currently includes an asynchronous event-drafting workflow, validated `update_event_draft` tool calls, a scripted provider, an optional Ollama adapter, a CLI, an Italian/English message catalog, and an extensible tool registry. FastAPI now exposes one drafting turn over HTTP/SSE. Historical baseline notes about `LocalizedText`, disabled streaming, or “no API yet” describe earlier states.
+The backend includes an asynchronous event-drafting workflow, validated `update_event_draft` tool calls, demo/Ollama/Hugging Face provider adapters, an Italian/English message catalog, a CLI, and a stateful FastAPI HTTP/SSE API backed by PostgreSQL. Provider profiles apply to the API; the CLI still selects Ollama through its own options. Event creation, notifications, and mobile UI remain unimplemented. Historical notes about `LocalizedText`, disabled streaming, or “no API yet” describe earlier states.
 
-The initial implementation is extensible but does not imply that Ollama is the final provider or that the tool registry is a universal agent framework. The first stateless API adds no persistence, notifications, or mobile UI.
+## Model provider profiles approved on 25 October 2026
+
+- Keep the deterministic demo, local Ollama model, and remote Hugging Face Inference Providers as three built-in choices.
+- Store the built-in provider profiles and the single active profile in PostgreSQL; the FastAPI admin endpoints list the choices and switch the active profile.
+- Keep provider credentials outside the database. Hugging Face uses `HF_TOKEN` from local environment configuration; the local admin API remains unauthenticated and must stay bound to localhost.
+- Start with Hugging Face as the first remote adapter. Amazon Bedrock remains a possible later adapter if an AWS deployment or specific model requirement justifies it; this implementation does not rule it out.
+
+## Initial Hugging Face model selected on 26 October 2026
+
+- Use `Qwen/Qwen3-8B` as the initial Hugging Face Inference Providers profile. It matches the local Qwen3 8B family, making a local-versus-hosted provider comparison more direct.
+- The current official Hugging Face Inference Providers catalog marks the Nscale route for this model as tool-compatible.
+- Keep Demo as the initially active profile so a fresh setup cannot make remote model calls accidentally.
 
 ## Open questions
 

@@ -4,12 +4,12 @@ Kairos is a personal assistant project intended to help people who procrastinate
 
 The current Python backend prepares event drafts through a multi-turn workflow. It includes a CLI and a local HTTP API with PostgreSQL-backed sessions. The database stores only the current workflow state, not a chat transcript. Event creation, notifications, voice input, and the mobile app are not implemented.
 
-See [Start and use the module](docs/usage/module-guide.md) for the CLI and API, and [Local infrastructure setup](docs/usage/local-infrastructure.md) for Docker, PostgreSQL, and optional Ollama startup.
+See [Start and use the module](docs/usage/module-guide.md) for the CLI and API, and [Local infrastructure setup](docs/usage/local-infrastructure.md) for Docker, PostgreSQL, and optional Ollama or Hugging Face configuration.
 
 ## Documentation
 
 - [Start and use the module](docs/usage/module-guide.md): Python setup, CLI, and HTTP API usage.
-- [Local infrastructure setup](docs/usage/local-infrastructure.md): Docker Compose, PostgreSQL, and optional Ollama configuration.
+- [Local infrastructure setup](docs/usage/local-infrastructure.md): Docker Compose, PostgreSQL, and optional model-provider configuration.
 - [Functional requirements](docs/functional/requirements.md) and [product proposals](docs/functional/product-proposals.md).
 - [Technology documentation](docs/technology/architecture.md): backend design, workflow, API, model integration, and prompt evaluation.
 

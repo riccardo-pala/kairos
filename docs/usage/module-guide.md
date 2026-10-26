@@ -31,7 +31,7 @@ Use `--language en` for English interface messages, `--think` to enable model re
 
 ## Use the HTTP API
 
-Start the API and its PostgreSQL database by following the [local infrastructure setup](local-infrastructure.md). The API uses a deterministic demo provider unless `KAIROS_OLLAMA_MODEL` is configured; the demo provider does not interpret arbitrary text.
+Start the API and its PostgreSQL database by following the [local infrastructure setup](local-infrastructure.md). The provider-profile migration installs a deterministic demo profile, active by default; it does not interpret arbitrary text. Provider profiles and the active selection are stored in PostgreSQL and survive API restarts.
 
 `GET /health` checks the database connection. `POST /sessions` creates a UUID session and stores the selected interface language and IANA timezone:
 
@@ -52,6 +52,26 @@ curl -N http://127.0.0.1:8000/sessions/SESSION_UUID/turn \
 The response is Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` contains the persisted session and updated draft, and `error` reports a workflow or concurrency error. A completed state is committed before its SSE event is sent. `GET /sessions/SESSION_UUID` reads the current draft and session metadata. Only the current state is stored; chat messages and transcript history are not saved or sent to the model. The model receives the current user message, draft, and previous question.
 
 The local OpenAPI page is available at `http://127.0.0.1:8000/docs`.
+
+### Select a model provider
+
+The database migration installs three built-in profiles: deterministic **Demo** (active initially), **Local Ollama (Qwen 3 8B)** using `qwen3:8b`, and **Hugging Face (Qwen3 8B)** using `Qwen/Qwen3-8B`. The Hugging Face router selects a compatible inference provider automatically from the bare model ID. These profiles are fixed in this prototype; the local admin API only lists them and activates one.
+
+First list the profiles and copy the `id` of the one to use:
+
+```bash
+curl -s http://127.0.0.1:8000/admin/provider-profiles
+```
+
+Activate that profile; it will be used for the next API turn without restarting the service:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/admin/provider-profiles/PROFILE_UUID/activate
+```
+
+For Ollama to work, start Ollama on the host and make sure `qwen3:8b` is installed. Compose reaches it through the built-in endpoint `http://host.docker.internal:11434`. The Hugging Face profile uses the managed Inference Providers router; configure `HF_TOKEN` as described in [Local infrastructure setup](local-infrastructure.md) before activating it. The token is never stored in PostgreSQL.
+
+These admin endpoints have no authentication. Use them only with the local API bound to localhost; the prototype must not be exposed to the Internet.
 
 ## Inspect the project in VS Code
 

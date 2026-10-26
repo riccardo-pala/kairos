@@ -1,6 +1,6 @@
 # Local infrastructure setup
 
-This guide starts the local HTTP API, PostgreSQL database, and optional Ollama connection with Docker Compose. This Compose configuration is for local development; a future deployment pipeline can build the backend image, but should use deployment-specific configuration and secrets. For API endpoints and requests, see [Start and use the module](module-guide.md).
+This guide starts the local HTTP API and PostgreSQL database with Docker Compose. This Compose configuration is for local development; a future deployment pipeline can build the backend image, but should use deployment-specific configuration and secrets. For API endpoints and model profiles, see [Start and use the module](module-guide.md).
 
 ## Start the API and PostgreSQL
 
@@ -12,27 +12,28 @@ docker compose up --build
 
 Compose binds the API to `127.0.0.1:8000` and PostgreSQL to `127.0.0.1:5432`. PostgreSQL data is stored in the `kairos-postgres` named volume. The API waits for the database health check and applies versioned SQL migrations from `backend/migrations/` at startup.
 
-This command uses a deterministic demo provider unless Ollama variables are supplied through the shell or an automatically loaded `.env` file. The demo provider is useful for checking the HTTP flow but does not interpret arbitrary messages.
+The provider-profile migration installs three built-in choices: the active deterministic Demo profile, local Ollama (`qwen3:8b` at `http://host.docker.internal:11434`), and Hugging Face (`Qwen/Qwen3-8B`). Demo checks the HTTP flow but does not interpret arbitrary messages. The profiles and current selection are stored in PostgreSQL and persist across container restarts. Select one through the local admin API described in the [module guide](module-guide.md).
 
-## Connect Ollama
+## Connect Hugging Face Inference Providers
 
-To use an Ollama model available on the host, create a `.env.local` file in the repository root with these values:
+Create a fine-grained Hugging Face access token with the **Make calls to Inference Providers** permission. Add it to the root `.env.local` file; do not commit or paste the real value into documentation:
 
 ```dotenv
-KAIROS_OLLAMA_MODEL=qwen3:8b
-KAIROS_OLLAMA_BASE_URL=http://host.docker.internal:11434
+HF_TOKEN=hf_your_token
 ```
 
-Compose does not load `.env.local` automatically, so pass it explicitly when starting the services:
+Compose does not load `.env.local` automatically, so start or recreate the API with that file:
 
 ```bash
 docker compose --env-file .env.local up --build
 ```
 
-Compose passes these values to the API using the mappings in `compose.yaml`. The `.env.local` file is ignored by Git. `KAIROS_OLLAMA_MODEL` selects the model; leave it empty or unset to use the demo provider. `KAIROS_OLLAMA_BASE_URL` is optional and defaults to `http://host.docker.internal:11434` in Compose.
+Compose passes `HF_TOKEN` to the API container. Kairos does not store it in PostgreSQL. After startup, list profiles and activate the built-in Hugging Face profile using its returned ID. Its bare model ID is routed automatically through Hugging Face Inference Providers. See the module guide for the activation request.
+
+The admin endpoints have no authentication and must only be used with the local API bound to localhost. Switching the active profile affects the next API turn; it does not require a container restart. HF usage and credits are managed separately in your Hugging Face account.
 
 ## Database and service configuration
 
-`KAIROS_DATABASE_URL` configures the API's PostgreSQL connection; Compose sets it to the `db` service. For direct local Uvicorn execution, the default URL is `postgresql://kairos:kairos-local@localhost:5432/kairos`. `KAIROS_API_PORT` and `POSTGRES_HOST_PORT` change the host ports.
+`DATABASE_URL` configures the API's PostgreSQL connection; Compose sets it to the `db` service. For direct local Uvicorn execution, the default URL is `postgresql://kairos:kairos-local@localhost:5432/kairos`. `API_PORT` and `POSTGRES_HOST_PORT` change the host ports. `MIGRATIONS_DIR` optionally overrides the backend's default migration directory. `.env.local` is ignored by Git and is used here for secrets such as `HF_TOKEN`.
 
 The API has no authentication or session-retention policy and must not be exposed to the Internet. `docker compose down` stops the services but keeps the named volume and its sessions. `docker compose down -v` also deletes the local database volume, including saved drafts.

@@ -9,14 +9,16 @@ The Python backend turns one user message into a validated event-draft update. T
 | Python 3.13 | Backend runtime and workflow orchestration |
 | Pydantic 2 | Validates request, stored state, tool arguments, and event data |
 | FastAPI and Uvicorn | HTTP application and local ASGI server |
-| httpx | Asynchronous HTTP client for Ollama |
+| httpx | Asynchronous HTTP client for Ollama and Hugging Face Inference Providers |
 | PostgreSQL and Psycopg 3 | Stores session language, timezone, and current workflow state as JSONB |
+| Provider profiles | Stores named demo, Ollama, and Hugging Face configurations and one active profile |
 | Docker Compose | Runs the API and PostgreSQL on localhost with a persistent database volume |
 | Ollama | Optional local model provider with tool calling and NDJSON streaming |
+| Hugging Face Inference Providers | Optional hosted model provider through an OpenAI-compatible streaming chat endpoint |
 | `uv` | Dependency and lockfile management |
 | pytest | Backend test runner |
 
-Important source files are under `backend/src/kairos/`: `models/event.py` contains event constraints; `contracts.py` defines shared workflow contracts; `workflow.py` controls each drafting turn; `tools.py` defines tool schemas and handlers; `providers.py` contains the prompt and Ollama adapter; `api.py` adapts sessions and workflow events to HTTP/SSE; `session_store.py` persists session records; `__main__.py` provides the CLI; `i18n.py` and `locales/messages.json` define the supported languages and static messages. The explicit SQL migration is `backend/migrations/001_create_sessions.sql`.
+Important source files are under `backend/src/kairos/`: `models/event.py` contains event constraints; `contracts.py` defines shared workflow contracts; `workflow.py` controls each drafting turn; `tools.py` defines tool schemas and handlers; `providers.py` contains the prompt and model adapters; `provider_store.py` persists provider profiles; `api.py` adapts sessions and workflow events to HTTP/SSE; `session_store.py` persists session records; `__main__.py` provides the CLI; `i18n.py` and `locales/messages.json` define the supported languages and static messages. Versioned SQL migrations are under `backend/migrations/`.
 
 ## Workflow
 
@@ -32,7 +34,7 @@ flowchart LR
 
 Each turn makes at most one model request and accepts exactly one permitted tool call. `EventWorkflow.stream_advance` emits progress before the request and before validation, optional generated text as it arrives, and `completed` only after the proposal has passed validation and been applied. `advance` consumes the same stream for callers that need only the final state. Progress and static errors follow the interface language; generated text and clarifications follow the conversation language.
 
-The Ollama adapter reads streaming NDJSON through `done=true`. Text and structured tool calls are separate channels. It buffers tool-call arguments until the stream finishes, so partial JSON is never executed or shown as the draft. Reasoning (`thinking`) is not exposed. Streamed text is provisional: a late error can follow text already displayed, while the state remains unchanged.
+The Ollama adapter reads streaming NDJSON through `done=true`. The Hugging Face adapter reads OpenAI-compatible SSE chunks through `[DONE]`. Both keep streamed text separate from tool calls and buffer partial tool-call arguments until the stream finishes, so partial JSON is never executed or shown as the draft. Reasoning (`thinking`) is not exposed. Streamed text is provisional: a late error can follow text already displayed, while the state remains unchanged. Hugging Face provider/model combinations do not all support tool calling and streaming, so profiles must use a compatible combination.
 
 ## Tool validation and draft state
 
@@ -46,9 +48,13 @@ Date, local time, and IANA timezone are separate values. Missing time is not rep
 
 `api.py` exposes `GET /health`, `POST /sessions`, `GET /sessions/{id}`, and `POST /sessions/{id}/turn`. Session creation stores a UUID, interface language, IANA timezone, initial `EventWorkflowState` JSONB, and database timestamps. Each turn loads the latest state by session ID; the client no longer sends the state. No conversation transcript is stored or sent to the model: the provider receives only the current message, current draft, and existing previous question.
 
-The turn endpoint translates workflow events into SSE names `progress`, optional `text`, `completed`, and `error`. A `completed` event is sent only after the new `EventWorkflowState` has been committed to PostgreSQL. Updates use the previously read `updated_at` as an optimistic concurrency check, so overlapping turns cannot silently overwrite each other's state. A shared `httpx.AsyncClient` and a Psycopg async connection pool are created in the FastAPI lifespan and closed at shutdown. The SQL migration runner applies checked-in migrations at startup. `KAIROS_OLLAMA_MODEL` selects the model and `KAIROS_OLLAMA_BASE_URL` optionally changes the Ollama endpoint. Without a model configuration, a deterministic scripted provider supports a basic API demonstration and does not interpret arbitrary user messages.
+The turn endpoint translates workflow events into SSE names `progress`, optional `text`, `completed`, and `error`. A `completed` event is sent only after the new `EventWorkflowState` has been committed to PostgreSQL. Updates use the previously read `updated_at` as an optimistic concurrency check, so overlapping turns cannot silently overwrite each other's state. Shared `httpx.AsyncClient` instances and a Psycopg async connection pool are created in the FastAPI lifespan and closed at shutdown. The SQL migration runner applies checked-in migrations at startup.
 
-`KAIROS_DATABASE_URL` configures the PostgreSQL connection; its local default is `postgresql://kairos:kairos-local@localhost:5432/kairos`. Docker Compose uses the database service hostname and a named volume. Both API and database ports bind to localhost. The prototype has no authentication or retention policy and is not ready for Internet exposure; retention and account-level authorization remain out of scope.
+Migration `002_create_provider_profiles.sql` inserts three built-in provider profiles: active Demo, inactive local Ollama (`qwen3:8b` at `http://host.docker.internal:11434`), and inactive Hugging Face (`Qwen/Qwen3-8B`). A partial unique index allows at most one profile to be active. The API does not create profiles at startup; its admin interface only lists and activates these choices. Every API turn reads the active row, so switching the profile affects the next turn without restarting the service. Hugging Face uses the managed Inference Providers router and reads its credential from `HF_TOKEN`; secrets are not stored in PostgreSQL. Its streaming adapter assembles text and tool-call fragments before the workflow validates the single call.
+
+The local-only administrative endpoints are `GET /admin/provider-profiles` and `POST /admin/provider-profiles/{profile_id}/activate`. They have no authentication and are safe only while the API remains bound to localhost. `HF_TOKEN` authenticates Hugging Face requests. The CLI still selects Ollama directly through its CLI argument and does not use the database profiles.
+
+`DATABASE_URL` configures the PostgreSQL connection; its local default is `postgresql://kairos:kairos-local@localhost:5432/kairos`. Docker Compose uses the database service hostname and a named volume. Both API and database ports bind to localhost. The prototype has no authentication or retention policy and is not ready for Internet exposure; retention and account-level authorization remain out of scope.
 
 ## Language behavior
 

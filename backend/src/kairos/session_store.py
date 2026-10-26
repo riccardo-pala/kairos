@@ -109,7 +109,7 @@ class SessionStore:
 
 async def apply_migrations(pool: AsyncConnectionPool) -> None:
     """Apply each checked-in SQL migration once, recording it transactionally."""
-    configured_dir = os.getenv("KAIROS_MIGRATIONS_DIR")
+    configured_dir = os.getenv("MIGRATIONS_DIR")
     migration_dir = (
         Path(configured_dir)
         if configured_dir

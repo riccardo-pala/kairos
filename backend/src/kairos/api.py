@@ -14,11 +14,16 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, WorkflowError
 from kairos.i18n import Language, MessageId, translate
-from kairos.providers import OllamaEventProvider, ScriptedEventProvider
+from kairos.provider_store import (
+    ProviderProfile,
+    ProviderProfileNotFound,
+    ProviderProfileStore,
+)
+from kairos.providers import HuggingFaceEventProvider, OllamaEventProvider, ScriptedEventProvider
 from kairos.session_store import (
     SessionConflict,
     SessionNotFound,
@@ -37,18 +42,15 @@ class APISettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     database_url: str
-    ollama_model: str | None = None
-    ollama_base_url: str = "http://localhost:11434"
+    hf_token: SecretStr | None = None
 
     @classmethod
     def from_env(cls) -> "APISettings":
-        model = os.getenv("KAIROS_OLLAMA_MODEL", "").strip() or None
-        base_url = os.getenv("KAIROS_OLLAMA_BASE_URL", "").strip() or "http://localhost:11434"
-        database_url = os.getenv("KAIROS_DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
+        database_url = os.getenv("DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
+        token = os.getenv("HF_TOKEN", "").strip()
         return cls(
             database_url=database_url,
-            ollama_model=model,
-            ollama_base_url=base_url,
+            hf_token=SecretStr(token) if token else None,
         )
 
 
@@ -159,18 +161,19 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             await pool.wait(timeout=10)
             await apply_migrations(pool)
             app.state.session_store = SessionStore(pool)
-            if configuration.ollama_model:
-                app.state.http_client = httpx.AsyncClient(
-                    base_url=configuration.ollama_base_url,
-                    timeout=httpx.Timeout(60.0),
-                )
-            else:
-                app.state.http_client = None
+            profile_store = ProviderProfileStore(pool)
+            app.state.provider_profile_store = profile_store
+            app.state.ollama_http_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0))
+            app.state.hf_http_client = httpx.AsyncClient(
+                base_url="https://router.huggingface.co/v1",
+                timeout=httpx.Timeout(60.0),
+            )
             yield
         finally:
-            client = getattr(app.state, "http_client", None)
-            if client is not None:
-                await client.aclose()
+            for client_name in ("ollama_http_client", "hf_http_client"):
+                client = getattr(app.state, client_name, None)
+                if client is not None:
+                    await client.aclose()
             await pool.close()
 
     app = FastAPI(title="Kairos drafting API", lifespan=lifespan)
@@ -184,6 +187,38 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             logger.error("Database health check failed (%s)", type(exc).__name__)
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable") from exc
         return HealthResponse()
+
+    @app.get("/admin/provider-profiles", response_model=list[ProviderProfile], tags=["local-admin"])
+    async def list_provider_profiles(request: Request) -> list[ProviderProfile]:
+        return await request.app.state.provider_profile_store.list_profiles()
+
+    @app.post(
+        "/admin/provider-profiles/{profile_id}/activate",
+        response_model=ProviderProfile,
+        tags=["local-admin"],
+    )
+    async def activate_provider_profile(profile_id: UUID, request: Request) -> ProviderProfile:
+        profile_store: ProviderProfileStore = request.app.state.provider_profile_store
+        try:
+            profile = await profile_store.get(profile_id)
+        except ProviderProfileNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provider profile not found.",
+            ) from exc
+        configured: APISettings = request.app.state.configuration
+        if profile.provider_type == "huggingface" and configured.hf_token is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="HF_TOKEN is not configured for the API.",
+            )
+        try:
+            return await profile_store.activate(profile_id)
+        except ProviderProfileNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provider profile not found.",
+            ) from exc
 
     @app.post(
         "/sessions",
@@ -218,10 +253,19 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         now = datetime.now(ZoneInfo(session.timezone))
         context = RequestContext(now=now, language=session.language, timezone=session.timezone)
         configured: APISettings = request.app.state.configuration
-        if configured.ollama_model:
+        profile: ProviderProfile = await request.app.state.provider_profile_store.get_active()
+        if profile.provider_type == "ollama":
             provider = OllamaEventProvider(
-                configured.ollama_model,
-                request.app.state.http_client,
+                profile.model,
+                request.app.state.ollama_http_client,
+                endpoint_url=profile.endpoint_url,
+            )
+        elif profile.provider_type == "huggingface":
+            token = configured.hf_token.get_secret_value() if configured.hf_token else None
+            provider = HuggingFaceEventProvider(
+                profile.model,
+                token,
+                request.app.state.hf_http_client,
             )
         else:
             provider = _development_provider(session.state, session.language, session.timezone, now)
