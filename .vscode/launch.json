@@ -21,6 +21,29 @@
         "--debug-model-io",
         "--debug-validation"
       ]
+    },
+    {
+      "name": "Kairos API + playground",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env.local",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/src",
+        "DATABASE_URL": "postgresql://kairos:kairos-local@localhost:5432/kairos",
+        "PLAYGROUND_DEBUG_API_LOGS": "true",
+        "PLAYGROUND_DEBUG_CONNECTOR_LOGS": "true",
+        "PLAYGROUND_DEBUG_INTERNAL_LOGS": "true"
+      },
+      "args": [
+        "kairos.api:app",
+        "--host", "127.0.0.1",
+        "--port", "8000",
+        "--no-access-log"
+      ]
     }
   ]
 }

@@ -16,6 +16,19 @@ Open the local developer playground at [http://127.0.0.1:8000/](http://127.0.0.1
 
 The provider-profile migration installs three built-in choices: the active deterministic Demo profile, local Ollama (`qwen3:8b` at `http://host.docker.internal:11434`), and Hugging Face (`Qwen/Qwen3-8B`). Demo checks the HTTP flow but does not interpret arbitrary messages. The profiles and current selection are stored in PostgreSQL and persist across container restarts. Select one through the local admin API described in the [module guide](module-guide.md).
 
+## Debug the API locally with VS Code
+
+To use Python breakpoints while keeping PostgreSQL in Docker and the playground in a browser, stop the Compose API and leave the database running:
+
+```bash
+docker compose stop api
+docker compose up -d db
+```
+
+In VS Code, select **Kairos API + playground** in Run and Debug and press F5. This launches Uvicorn from `backend/.venv`, with the API bound to `127.0.0.1:8000` and all three local diagnostic categories enabled. The launch configuration reads `.env.local` for `HF_TOKEN`. Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) to use the same playground served by FastAPI; requests made there hit breakpoints in `backend/src/kairos`.
+
+This launch does not use Uvicorn's `--reload`, so breakpoints stay in the debugged process. Restart the VS Code debug session after changing Python code. Keep the database container running; its data volume is unchanged.
+
 ## Connect Hugging Face Inference Providers
 
 Create a fine-grained Hugging Face access token with the **Make calls to Inference Providers** permission. Add it to the root `.env.local` file; do not commit or paste the real value into documentation:
