@@ -6,6 +6,8 @@ The current Python backend prepares event drafts through a multi-turn workflow. 
 
 See [Start and use the module](docs/usage/module-guide.md) for the CLI and API, and [Local infrastructure setup](docs/usage/local-infrastructure.md) for Docker, PostgreSQL, and optional Ollama or Hugging Face configuration.
 
+With the local Compose stack running, open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the developer playground. It uses the existing API and is intended for localhost development only.
+
 ## Documentation
 
 - [Start and use the module](docs/usage/module-guide.md): Python setup, CLI, and HTTP API usage.

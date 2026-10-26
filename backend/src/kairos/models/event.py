@@ -1,5 +1,6 @@
 from datetime import date, datetime, time
 from typing import Literal
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class EventTask(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
+    id: UUID = Field(default_factory=uuid4)
     description: str = Field(min_length=1)
     timing: Literal["before", "after"]
 

@@ -145,7 +145,11 @@ async def run(args):
                     "start_time": "14:30",
                     "location": "Ambulatorio X", "duration_minutes": 30,
                 }, "task_operations": {
-                    "add": [{"description": text(MessageId.DEMO_TASK), "timing": "before"}],
+                    "add": [{
+                        "description": text(MessageId.DEMO_TASK),
+                        "timing": "before",
+                        "evidence": text(MessageId.DEMO_FIRST_MESSAGE),
+                    }],
                 }}),
                 ToolCall(name="update_event_draft", arguments={"patch": {
                     "reminders": [{"minutes_before": 60}, {"minutes_before": 1440}],

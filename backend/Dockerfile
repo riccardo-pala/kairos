@@ -18,6 +18,7 @@ RUN groupadd --system --gid 10001 kairos \
     && useradd --system --uid 10001 --gid kairos --home-dir /app kairos
 COPY --from=builder --chown=kairos:kairos /app/.venv /app/.venv
 COPY --from=builder --chown=kairos:kairos /app/migrations /app/migrations
+COPY --from=builder --chown=kairos:kairos /app/src/kairos/static /app/static
 
 USER 10001:10001
 EXPOSE 8000

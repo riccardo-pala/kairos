@@ -1,9 +1,12 @@
 """Explicit registry of typed handlers exposed to the model for this workflow."""
 
+import re
+import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, time
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -51,71 +54,9 @@ class ToolRegistry:
         if tool is None or not tool.available_when(state):
             raise WorkflowError(MessageId.TOOL_NOT_ALLOWED)
         try:
-            arguments = call.arguments
-            if call.name == "update_event_draft":
-                arguments = self._adapt_legacy_task_list(arguments, state, context)
-            return tool.execute(arguments, state.model_copy(deep=True), context)
+            return tool.execute(call.arguments, state.model_copy(deep=True), context)
         except ValidationError as exc:
             raise WorkflowError(MessageId.INVALID_ARGUMENTS) from exc
-
-    @staticmethod
-    def _adapt_legacy_task_list(arguments: dict, state: EventWorkflowState, context: RequestContext) -> dict:
-        """Adapt old full-list proposals to safe explicit operations."""
-        patch = arguments.get("patch")
-        if not isinstance(patch, dict) or not isinstance(patch.get("tasks"), list):
-            return arguments
-
-        proposed = [EventTask.model_validate(item) for item in patch["tasks"]]
-        current = list(state.draft.tasks)
-        new_tasks = []
-        for proposed_task in proposed:
-            key = ToolRegistry._task_key(proposed_task)
-            match = next((i for i, task in enumerate(current) if ToolRegistry._task_key(task) == key), None)
-            if match is None:
-                new_tasks.append(proposed_task)
-            else:
-                current.pop(match)
-
-        normalized_patch = {key: value for key, value in patch.items() if key != "tasks"}
-        normalized = arguments.copy()
-        normalized["patch"] = normalized_patch
-        raw_operations = arguments.get("task_operations") or {}
-        if not isinstance(raw_operations, dict):
-            return arguments  # Preserve the malformed value for normal schema validation.
-        operations = raw_operations.copy()
-        raw_additions = operations.get("add", [])
-        explicit_removals = operations.get("remove", [])
-        if not isinstance(raw_additions, list) or not isinstance(explicit_removals, list):
-            return arguments
-        additions = list(raw_additions)
-        existing_additions = {
-            ToolRegistry._task_key(EventTask.model_validate(item)) for item in additions
-        }
-        removed_descriptions = {
-            " ".join(item.split()).casefold()
-            for item in explicit_removals
-            if isinstance(item, str)
-        }
-        for task in new_tasks:
-            key = ToolRegistry._task_key(task)
-            if key not in existing_additions and key[0] not in removed_descriptions:
-                additions.append(task.model_dump())
-                existing_additions.add(key)
-        operations["add"] = additions
-        normalized["task_operations"] = operations
-
-        has_explicit_remove = bool(explicit_removals)
-        if current and not new_tasks and not has_explicit_remove and not normalized.get("clarification"):
-            try:
-                language = Language(arguments.get("conversation_language"))
-            except (TypeError, ValueError):
-                language = state.conversation_language or context.language
-            normalized["clarification"] = translate(MessageId.TASK_REMOVAL_AMBIGUOUS, language)
-        return normalized
-
-    @staticmethod
-    def _task_key(task: EventTask) -> tuple[str, str]:
-        return (" ".join(task.description.split()).casefold(), task.timing)
 
 
 class EventDraftPatch(BaseModel):
@@ -136,16 +77,34 @@ class EventDraftPatch(BaseModel):
     reminders: list[ReminderDraft] | None = None
 
 
+class TaskAddition(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    description: NonEmptyText
+    timing: Literal["before", "after"]
+    evidence: NonEmptyText = Field(
+        description="Exact quote from the current user message containing the action and before/after relation."
+    )
+
+
 class TaskOperations(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    add: list[EventTask] = Field(
+    add: list[TaskAddition] = Field(
         default_factory=list,
-        description="Explicit new activities only; existing activities are preserved.",
+        description=(
+            "Explicit new activities only. Each addition must quote exact source evidence "
+            "containing both the separate action and its before/after relation."
+        ),
     )
-    remove: list[NonEmptyText] = Field(
-        default_factory=list,
-        description="Exact descriptions of uniquely identified existing activities to remove.",
+    remove: bool = Field(
+        default=False,
+        strict=True,
+        description="True only when the user's message explicitly requests activity removal.",
+    )
+    remove_evidence: NonEmptyText | None = Field(
+        default=None,
+        description="Exact quote from the current user message that explicitly requests removal.",
     )
 
 
@@ -156,6 +115,7 @@ class UpdateEventArguments(BaseModel):
     task_operations: TaskOperations = Field(default_factory=TaskOperations)
     clarification: NonEmptyText | None = None
     conversation_language: Language | None = None
+
 
 class AskClarificationArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -170,37 +130,110 @@ def update_event_draft(
     patch = arguments.patch.model_dump(exclude_unset=True)
     data = state.draft.model_dump() | patch
     tasks = list(state.draft.tasks)
-    removal_is_ambiguous = False
-    for requested in arguments.task_operations.remove:
-        key = " ".join(requested.split()).casefold()
-        matches = [index for index, task in enumerate(tasks)
-                   if " ".join(task.description.split()).casefold() == key]
-        if len(matches) != 1:
-            removal_is_ambiguous = True
-            break
-        tasks.pop(matches[0])
-    if removal_is_ambiguous:
-        tasks = list(state.draft.tasks)
-    else:
-        existing = {
-            (" ".join(task.description.split()).casefold(), task.timing)
-            for task in tasks
-        }
-        for task in arguments.task_operations.add:
-            key = (" ".join(task.description.split()).casefold(), task.timing)
-            if key not in existing:
-                tasks.append(task)
-                existing.add(key)
+    pending_removal: list[UUID] = []
+    clarification = arguments.clarification
+    language = arguments.conversation_language or state.conversation_language or context.language
+
+    if arguments.task_operations.remove:
+        if not _is_grounded_removal(arguments.task_operations.remove_evidence, context.current_message):
+            if _message_requests_removal(context.current_message):
+                clarification = clarification or translate(MessageId.TASK_REMOVAL_UNCLEAR, language)
+        elif not tasks:
+            clarification = clarification or translate(MessageId.TASK_REMOVAL_NONE, language)
+        else:
+            exact_matches = [task for task in tasks if _contains_quote(context.current_message, task.description)]
+            if len(exact_matches) == 1:
+                tasks = [task for task in tasks if task.id != exact_matches[0].id]
+            elif len(tasks) == 1:
+                tasks = []
+            else:
+                pending_removal = [task.id for task in tasks]
+
+    rejected_addition = False
+    existing = {(_normalize_quote(task.description), task.timing) for task in tasks}
+    for proposal in arguments.task_operations.add:
+        if not _is_grounded_addition(proposal, context.current_message, data.get("title")):
+            rejected_addition = True
+            continue
+        key = (_normalize_quote(proposal.description), proposal.timing)
+        if key not in existing:
+            tasks.append(EventTask(description=proposal.description, timing=proposal.timing))
+            existing.add(key)
+
+    if (
+        rejected_addition
+        and clarification is None
+        and any(cue.search(context.current_message) for cue in _RELATION_CUES.values())
+    ):
+        clarification = translate(MessageId.TASK_ADDITION_UNCLEAR, language)
     data["tasks"] = tasks
     candidate = EventDraft.model_validate(data)
-    language = arguments.conversation_language or state.conversation_language or context.language
     return ToolResult(
         draft=candidate,
-        clarification=(
-            arguments.clarification
-            or (translate(MessageId.TASK_REMOVAL_AMBIGUOUS, language) if removal_is_ambiguous else None)
-        ),
+        clarification=clarification,
         conversation_language=arguments.conversation_language,
+        pending_task_removal=pending_removal,
+    )
+
+
+def _normalize_quote(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join(normalized.split())
+
+
+def _contains_quote(message: str, quote: str | None) -> bool:
+    if not quote:
+        return False
+    phrase = re.escape(_normalize_quote(quote))
+    return bool(re.search(rf"(?<!\w){phrase}(?!\w)", _normalize_quote(message)))
+
+
+_REMOVAL_CUE = re.compile(
+    r"\b(?:togli(?:ere|mi)?|rimuovi(?:re|mi)?|cancell(?:a|are|ami)|elimin(?:a|are|ami)|"
+    r"remove|delete|erase)\b",
+    re.IGNORECASE,
+)
+_NEGATED_REMOVAL = re.compile(
+    r"\b(?:non|don't|do not|never|not)\b[^.!?]{0,24}\b(?:togli|rimuovi|cancell|elimin|remove|delete|erase)",
+    re.IGNORECASE,
+)
+
+
+def _is_grounded_removal(evidence: str | None, message: str) -> bool:
+    return (
+        _contains_quote(message, evidence)
+        and bool(_REMOVAL_CUE.search(evidence or ""))
+        and not _NEGATED_REMOVAL.search(evidence or "")
+    )
+
+
+def _message_requests_removal(message: str) -> bool:
+    return bool(_REMOVAL_CUE.search(message)) and not _NEGATED_REMOVAL.search(message)
+
+
+_RELATION_CUES = {
+    "before": re.compile(
+        r"\b(?:prima(?:\s+(?:di|che))?|in\s+anticipo|precedent(?:e|i|emente)|propedeutic[oa]|"
+        r"before(?:\s+(?:the|that|i|we|you))?|prior\s+to|ahead\s+of|preparatory|in\s+advance)\b",
+        re.IGNORECASE,
+    ),
+    "after": re.compile(
+        r"\b(?:dopo(?:\s+(?:aver|avere|che))?|successiv[oa](?:mente)?|poi|"
+        r"after(?:\s+(?:the|that|i|we|you))?|once|afterwards|later|then|subsequent(?:ly)?)\b",
+        re.IGNORECASE,
+    ),
+}
+
+
+def _is_grounded_addition(proposal: TaskAddition, message: str, title: str | None) -> bool:
+    evidence = proposal.evidence
+    normalized_description = _normalize_quote(proposal.description)
+    normalized_title = _normalize_quote(title or "")
+    return (
+        _contains_quote(message, evidence)
+        and _contains_quote(evidence, proposal.description)
+        and normalized_description != normalized_title
+        and bool(_RELATION_CUES[proposal.timing].search(evidence))
     )
 
 

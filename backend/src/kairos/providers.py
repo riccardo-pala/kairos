@@ -29,16 +29,16 @@ Include in patch ONLY fields explicitly supplied or corrected by the user.
 Keep all other fields omitted, not null. Null explicitly clears an optional field.
 Use patch for event details only. Represent activity changes in the top-level
 task_operations object, beside patch. Omit unchanged activities. Add only
-explicitly requested additional activities. For removal, refer to an existing
-task by copying its description exactly. If the user's reference does not
-identify exactly one existing task, ask one focused clarification instead of
-leaving tasks unchanged. For an addition use
-{"patch":{},"task_operations":{"add":[{"description":"...","timing":"before"}]}}.
-For removal use {"patch":{},"task_operations":{"remove":["exact existing description"]}}.
-If the user refers to a single existing activity generically (for example
-"remove the preparatory activity") and there is exactly one task, remove that
-task by its exact existing description. Do not reconstruct or replace the task
-list. reminders=[] means explicitly no reminders; otherwise omit reminders until
+explicitly requested additional activities. For each addition, copy an exact
+quote from the current user message into evidence; the quote must contain both
+the separate action and its explicit before/after relation. Do not add an
+activity when no such quote exists. Use
+{"patch":{},"task_operations":{"add":[{"description":"...","timing":"before","evidence":"exact user quote"}]}}.
+For removal, set remove=true and copy the user's explicit removal request into
+remove_evidence. Never choose which task to remove. Python resolves a uniquely
+named task or the sole existing task; otherwise it asks the user to select from
+numbered options. Use {"patch":{},"task_operations":{"remove":true,"remove_evidence":"exact user quote"}}.
+Do not reconstruct or replace the task list. reminders=[] means explicitly no reminders; otherwise omit reminders until
 the user chooses. Do not invent a default reminder. When answering the reminder
 question, make exactly one update_event_draft call and put every chosen offset
 in patch.reminders as minutes_before values; never make one call per reminder or
@@ -84,7 +84,9 @@ must not block the event. Do not ask for several missing fields at once: after
 applying safe fields, leave the next required-field question to the workflow.
 Represent the main action as the event title. Add before/after tasks only when
 the user explicitly describes separate additional actions and their relation;
-never duplicate the main action as a task.
+never duplicate the main action as a task. Python accepts a task addition only
+when its quoted evidence is present verbatim in the current user message and
+contains a supported before/after marker.
 If genuine ambiguity prevents a safe value, preserve other safe fields and ask
 one focused clarification about that ambiguity.
 """
@@ -141,6 +143,9 @@ class OllamaEventProvider:
     async def stream_propose(
         self, message: str, state: EventWorkflowState, context: RequestContext, tools: list[dict]
     ) -> AsyncIterator[ProviderEvent]:
+        current_draft = state.draft.model_dump(mode="json")
+        for task in current_draft["tasks"]:
+            task.pop("id", None)
         payload = {
             "model": self.model,
             "stream": True,
@@ -151,7 +156,7 @@ class OllamaEventProvider:
                     "content": json.dumps(
                         {
                             "context": context.model_dump(mode="json"),
-                            "current_draft": state.draft.model_dump(mode="json"),
+                            "current_draft": current_draft,
                             "previous_question": state.question,
                             "conversation_language": state.conversation_language.value
                             if state.conversation_language else None,

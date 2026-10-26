@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from typing import Literal, Protocol
+from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
@@ -22,6 +23,7 @@ class RequestContext(BaseModel):
     now: AwareDatetime
     language: Language = Language.IT
     timezone: str
+    current_message: str = Field(default="", exclude=True)
 
 
 class ToolCall(BaseModel):
@@ -35,12 +37,14 @@ class EventWorkflowState(BaseModel):
     question: NonEmptyText | None = None
     conversation_language: Language | None = None
     turns: int = 0
+    pending_task_removal: list[UUID] = Field(default_factory=list)
 
 
 class ToolResult(BaseModel):
     draft: EventDraft
     clarification: NonEmptyText | None = None
     conversation_language: Language | None = None
+    pending_task_removal: list[UUID] = Field(default_factory=list)
 
 
 class ProviderEvent(BaseModel):

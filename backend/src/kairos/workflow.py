@@ -2,6 +2,9 @@
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, time, timedelta
+import re
+import unicodedata
+from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from kairos.contracts import (
@@ -65,9 +68,21 @@ class EventWorkflow:
         self.tools = tools if tools is not None else event_tools()
 
     async def stream_advance(
-        self, state: EventWorkflowState, message: str, context: RequestContext
+        self,
+        state: EventWorkflowState,
+        message: str,
+        context: RequestContext,
+        *,
+        task_id: UUID | None = None,
     ) -> AsyncIterator[WorkflowEvent]:
         self._validate_request(state, message, context)
+        if task_id is not None and not state.pending_task_removal:
+            raise WorkflowError(MessageId.INVALID_ARGUMENTS)
+        if state.pending_task_removal:
+            yield WorkflowEvent(kind="completed", state=self._resolve_task_removal(
+                state, message, context, task_id
+            ))
+            return
         yield WorkflowEvent(
             kind="progress", message=translate(MessageId.PROGRESS_START, context.language)
         )
@@ -94,15 +109,19 @@ class EventWorkflow:
         call = calls[0]
         if self._next_question(state.draft) == MessageId.REMINDERS:
             call = self._prepare_reminder_call(call, state, context)
-        result = self.tools.execute(call, state, context)
+        turn_context = context.model_copy(update={"current_message": message})
+        result = self.tools.execute(call, state, turn_context)
         candidate = result.draft
         if candidate.timezone is None:
             candidate.timezone = context.timezone
         if has_reminder_in_past(candidate, context.now):
             raise WorkflowError(MessageId.REMINDER_IN_PAST)
         language = result.conversation_language or state.conversation_language or context.language
+        pending_removal = result.pending_task_removal
         question = result.clarification
-        if question is None:
+        if pending_removal:
+            question = self._task_removal_question(candidate, pending_removal, language)
+        elif question is None:
             missing = self._next_question(candidate)
             if missing:
                 question = translate(missing, language)
@@ -112,20 +131,112 @@ class EventWorkflow:
             question=question,
             conversation_language=language,
             turns=state.turns + 1,
+            pending_task_removal=pending_removal,
         )
         yield WorkflowEvent(kind="completed", state=completed)
 
     async def advance(
-        self, state: EventWorkflowState, message: str, context: RequestContext
+        self,
+        state: EventWorkflowState,
+        message: str,
+        context: RequestContext,
+        *,
+        task_id: UUID | None = None,
     ) -> EventWorkflowState:
         """Compatibility convenience that consumes the same streaming workflow."""
         completed = None
-        async for event in self.stream_advance(state, message, context):
+        async for event in self.stream_advance(state, message, context, task_id=task_id):
             if event.kind == "completed":
                 completed = event.state
         if completed is None:
             raise WorkflowError(MessageId.INVALID_TOOL_CALL)
         return completed
+
+    @staticmethod
+    def _task_removal_question(draft, options, language: Language) -> str:
+        descriptions = {task.id: task.description for task in draft.tasks}
+        choices = [
+            f"{index}. {descriptions[task_id]}"
+            for index, task_id in enumerate(options, start=1)
+            if task_id in descriptions
+        ]
+        return f"{translate(MessageId.TASK_REMOVAL_AMBIGUOUS, language)}\n" + "\n".join(choices)
+
+    @staticmethod
+    def _resolve_task_removal(
+        state: EventWorkflowState,
+        message: str,
+        context: RequestContext,
+        task_id: UUID | None,
+    ) -> EventWorkflowState:
+        options = [task for task in state.draft.tasks if task.id in state.pending_task_removal]
+        selected = next((task for task in options if task.id == task_id), None) if task_id else None
+        if task_id is None:
+            selected = EventWorkflow._task_selected_by_message(message, options)
+
+        if selected is not None:
+            draft = state.draft.model_copy(update={
+                "tasks": [task for task in state.draft.tasks if task.id != selected.id]
+            })
+            missing = EventWorkflow._next_question(draft)
+            language = state.conversation_language or context.language
+            question = translate(missing, language) if missing else None
+            return state.model_copy(update={
+                "draft": draft,
+                "status": "collecting" if question else "ready_for_review",
+                "question": question,
+                "pending_task_removal": [],
+                "turns": state.turns + 1,
+            })
+
+        if EventWorkflow._is_cancel_selection(message):
+            language = state.conversation_language or context.language
+            missing = EventWorkflow._next_question(state.draft)
+            question = (
+                translate(missing, language)
+                if missing
+                else translate(MessageId.TASK_SELECTION_CANCELLED, language)
+            )
+            return state.model_copy(update={
+                "status": "collecting" if missing else "ready_for_review",
+                "question": question,
+                "pending_task_removal": [],
+                "turns": state.turns + 1,
+            })
+
+        if not options:
+            language = state.conversation_language or context.language
+            missing = EventWorkflow._next_question(state.draft)
+            question = translate(missing, language) if missing else None
+            return state.model_copy(update={
+                "status": "collecting" if question else "ready_for_review",
+                "question": question,
+                "pending_task_removal": [],
+                "turns": state.turns + 1,
+            })
+
+        language = state.conversation_language or context.language
+        question = EventWorkflow._task_removal_question(
+            state.draft, state.pending_task_removal, language
+        )
+        return state.model_copy(update={"question": question, "turns": state.turns + 1})
+
+    @staticmethod
+    def _task_selected_by_message(message: str, options):
+        normalized = " ".join(unicodedata.normalize("NFKC", message).casefold().split())
+        if re.fullmatch(r"(?:#\s*)?([1-9][0-9]*)\.?", normalized):
+            index = int(re.fullmatch(r"(?:#\s*)?([1-9][0-9]*)\.?", normalized).group(1))
+            return options[index - 1] if index <= len(options) else None
+        matches = [
+            task for task in options
+            if " ".join(unicodedata.normalize("NFKC", task.description).casefold().split()) == normalized
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    @staticmethod
+    def _is_cancel_selection(message: str) -> bool:
+        normalized = " ".join(unicodedata.normalize("NFKC", message).casefold().split())
+        return normalized in {"annulla", "annulla scelta", "lascia stare", "non importa", "cancel", "cancel selection"}
 
     def _validate_request(self, state: EventWorkflowState, message: str, context: RequestContext) -> None:
         if not message.strip() or len(message) > 8_000:

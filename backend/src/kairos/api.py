@@ -3,17 +3,21 @@
 import json
 import os
 import sys
+from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
+from threading import Lock
 from time import perf_counter
 from typing import Annotated, Literal, TypeAlias
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -38,12 +42,31 @@ from kairos.workflow import EventWorkflow
 
 DEFAULT_DATABASE_URL = "postgresql://kairos:kairos-local@localhost:5432/kairos"
 MAX_API_LOG_BYTES = 8 * 1024
+MAX_DIAGNOSTIC_ENTRIES = 500
+MAX_DIAGNOSTIC_ENTRY_FIELD_BYTES = 16 * 1024
 SENSITIVE_LOG_KEYS = {"authorization", "token", "hf_token", "access_token"}
+PACKAGE_STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_DIR = PACKAGE_STATIC_DIR if PACKAGE_STATIC_DIR.is_dir() else Path("/app/static")
+DIAGNOSTIC_LOGS: deque[dict] = deque(maxlen=MAX_DIAGNOSTIC_ENTRIES)
+DIAGNOSTIC_LOGS_LOCK = Lock()
 
 
 def _emit_log(event: str, **fields: object) -> None:
     """Write one structured JSON record to container stdout."""
-    print(json.dumps({"event": event, **fields}, ensure_ascii=False, default=str), file=sys.stdout, flush=True)
+    record = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="milliseconds"),
+        "event": event,
+        **fields,
+    }
+    sanitized = _sanitize_log_data(record)
+    buffered = dict(sanitized)
+    for key in ("data", "body", "response_body_excerpt"):
+        if key in buffered:
+            max_bytes = 1_200 if key == "response_body_excerpt" else MAX_DIAGNOSTIC_ENTRY_FIELD_BYTES
+            buffered[key] = _bounded_log_data(buffered[key], max_bytes=max_bytes)
+    with DIAGNOSTIC_LOGS_LOCK:
+        DIAGNOSTIC_LOGS.append(buffered)
+    print(json.dumps(sanitized, ensure_ascii=False, default=str), file=sys.stdout, flush=True)
 
 
 def _sanitize_log_data(value: object) -> object:
@@ -57,15 +80,15 @@ def _sanitize_log_data(value: object) -> object:
     return value
 
 
-def _bounded_log_data(value: object) -> object:
+def _bounded_log_data(value: object, *, max_bytes: int = MAX_API_LOG_BYTES) -> object:
     sanitized = _sanitize_log_data(value)
     encoded = json.dumps(sanitized, ensure_ascii=False, default=str).encode("utf-8")
-    if len(encoded) <= MAX_API_LOG_BYTES:
+    if len(encoded) <= max_bytes:
         return sanitized
     return {
         "truncated": True,
-        "max_bytes": MAX_API_LOG_BYTES,
-        "preview": encoded[:MAX_API_LOG_BYTES].decode("utf-8", errors="ignore"),
+        "max_bytes": max_bytes,
+        "preview": encoded[:max_bytes].decode("utf-8", errors="ignore"),
     }
 
 
@@ -103,9 +126,9 @@ class APISettings(BaseModel):
         return cls(
             database_url=database_url,
             hf_token=SecretStr(token) if token else None,
-            debug_api_logs=cls._env_enabled("DEBUG_API_LOGS"),
-            debug_connector_logs=cls._env_enabled("DEBUG_CONNECTOR_LOGS"),
-            debug_internal_logs=cls._env_enabled("DEBUG_INTERNAL_LOGS"),
+            debug_api_logs=cls._env_enabled("PLAYGROUND_DEBUG_API_LOGS"),
+            debug_connector_logs=cls._env_enabled("PLAYGROUND_DEBUG_CONNECTOR_LOGS"),
+            debug_internal_logs=cls._env_enabled("PLAYGROUND_DEBUG_INTERNAL_LOGS"),
         )
 
 
@@ -129,6 +152,10 @@ class TurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1, max_length=8_000)
+    task_id: UUID | None = Field(
+        default=None,
+        description="Stable task ID selected while answering a pending task-removal question.",
+    )
 
     @field_validator("message")
     @classmethod
@@ -233,6 +260,11 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
 
     app = FastAPI(title="Kairos drafting API", lifespan=lifespan)
     app.state.configuration = configuration
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def playground() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
 
     @app.middleware("http")
     async def request_diagnostics(request: Request, call_next):
@@ -240,10 +272,13 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         request.state.request_id = request_id
         started_at = perf_counter()
         is_health = request.url.path == "/health"
+        is_diagnostics_endpoint = request.url.path.startswith("/admin/diagnostics")
+        is_static_playground_request = request.url.path == "/" or request.url.path.startswith("/static/")
+        omit_api_log = is_diagnostics_endpoint or is_static_playground_request
         try:
             response = await call_next(request)
         except Exception as exc:
-            if configuration.debug_api_logs and not is_health:
+            if configuration.debug_api_logs and not is_health and not omit_api_log:
                 request_data = getattr(request.state, "api_request_data", None)
                 _emit_log(
                     "api.request",
@@ -263,7 +298,9 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 )
             raise
         response.headers["X-Request-ID"] = request_id
-        if configuration.debug_api_logs and (not is_health or response.status_code >= 400):
+        if configuration.debug_api_logs and not omit_api_log and (
+            not is_health or response.status_code >= 400
+        ):
             route = request.scope.get("route")
             request_data = getattr(request.state, "api_request_data", None)
             _emit_log(
@@ -296,6 +333,23 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 )
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable") from exc
         return HealthResponse()
+
+    @app.get("/admin/diagnostics", tags=["local-admin"])
+    async def read_diagnostics(
+        request_id: str | None = Query(default=None, max_length=128),
+    ) -> dict[str, object]:
+        with DIAGNOSTIC_LOGS_LOCK:
+            entries = list(DIAGNOSTIC_LOGS)
+        if request_id:
+            entries = [entry for entry in entries if entry.get("request_id") == request_id]
+        return {"items": list(reversed(entries)), "capacity": MAX_DIAGNOSTIC_ENTRIES}
+
+    @app.delete("/admin/diagnostics", tags=["local-admin"])
+    async def clear_diagnostics() -> dict[str, int]:
+        with DIAGNOSTIC_LOGS_LOCK:
+            cleared = len(DIAGNOSTIC_LOGS)
+            DIAGNOSTIC_LOGS.clear()
+        return {"cleared": cleared}
 
     @app.get("/admin/provider-profiles", response_model=list[ProviderProfile], tags=["local-admin"])
     async def list_provider_profiles(request: Request) -> list[ProviderProfile]:
@@ -446,7 +500,9 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         async def stream() -> AsyncIterator[str]:
             turn_started_at = perf_counter()
             try:
-                async for item in workflow.stream_advance(session.state, body.message, context):
+                async for item in workflow.stream_advance(
+                    session.state, body.message, context, task_id=body.task_id
+                ):
                     if item.kind == "progress":
                         phase = (
                             "validation"
