@@ -1,6 +1,6 @@
 # Kairos functional requirements
 
-**Document status:** Revision 0.4, 25 October 2026. The backend provides multi-turn event drafting, a CLI, and a FastAPI service with PostgreSQL-backed sessions. Container runtime verification is pending.
+**Document status:** Revision 0.5, 26 October 2026. The backend provides multi-turn event drafting, a CLI, a FastAPI service with PostgreSQL-backed sessions, and a local playground with structured field templates. Container runtime verification is pending.
 
 ## Executive summary
 
@@ -22,8 +22,8 @@ The intended proof of concept covers the journey from an intention to creating a
 
 1. The user starts a request in Italian or English, by text or voice.
 2. The user describes an event or commitment and may provide a location, duration, or related activities.
-3. Kairos organizes the supplied information and asks for required details that are missing or ambiguous. In particular, it asks the user to choose a reminder time if none was provided.
-4. The user can correct the draft and configure multiple reminders. The exact no-reminder interaction still needs definition. The backend carries the conversation language across turns; real-model language behavior requires further evaluation.
+3. Kairos extracts all explicit details into a draft. It presents any required fields still missing separately from optional suggestions such as location, duration, and reminders.
+4. The user can provide any new detail at any point, regardless of the previous question. Playground templates can collect structured values; free-text chat remains available. Reminders are optional, and the user can add one or more or choose none.
 5. The user reviews the draft before considering it ready. The review interface and explicit confirmation before creating an event have not been defined.
 
 ## Functional requirements
@@ -35,11 +35,11 @@ IDs are stable to support references and revisions. Each criterion describes an 
 | **FR-01** | The user can describe an event or commitment in natural language. Kairos returns a draft structure consistent with the information provided. | The multi-turn draft workflow is implemented in the backend. |
 | **FR-02** | The user can submit a request by text or voice. Voice input enters the same functional flow as text. | Text input is available in the backend and CLI. Voice capture and mobile interface are not implemented. |
 | **FR-03** | The draft can include the event date and time, location, and duration when the user knows and provides them. Missing values are not invented. | Draft fields and clarifications are supported in the backend. |
-| **FR-04** | The user can associate one or more activities to do before and/or after an event. Activities remain distinct from reminders. | Before-and-after activities are supported by the backend draft. |
-| **FR-05** | The user can choose multiple reminders for an event. If the user does not specify when to be reminded, Kairos asks before completing the draft. | Draft reminders and clarification are supported. Notification delivery is not implemented. |
-| **FR-06** | Kairos asks for clarification when required information is missing or ambiguity prevents a safe representation. Answers update the same draft. | Multi-turn draft updates are implemented. Required fields beyond date and time remain to be defined. |
+| **FR-04** | The user can associate one or more activities to do before and/or after an event. Activities remain distinct from reminders. | Before-and-after activities are supported by the backend draft and an explicit playground template. |
+| **FR-05** | The user can add multiple reminders or choose none. Missing reminder preferences are optional and do not block a useful draft. A reminder template accepts a number and unit. | Draft reminders and structured playground actions are implemented. Notification delivery is not implemented. |
+| **FR-06** | Kairos identifies required fields still missing and clarifies genuine ambiguity. Each new message may update any explicit draft field, even if it does not answer the previous question. | Required-field guidance and non-blocking multi-turn updates are implemented. |
 | **FR-07** | The user can correct or complete proposed information before considering the draft ready. | Draft corrections are supported. The review interface and confirmation before event creation remain undefined. |
-| **FR-08** | The experience offers text, voice, and in-app buttons or interactive components, so text is not the only interaction method. | Voice input, mobile interface, and interactive controls are not implemented. |
+| **FR-08** | The experience offers text, voice, and in-app buttons or interactive components, so text is not the only interaction method. | The local playground has structured templates for title, date, time, location, duration, before/after activities, and reminders. Voice input and the mobile interface are not implemented. |
 | **FR-09** | Android Home Screen widgets are outside the current scope. | Not included in the current product scope. |
 | **FR-10** | Static interface text and primary functional flows support Italian and English. Interface and conversation languages may differ. | The backend, CLI, and API support Italian and English. The mobile app is not implemented. |
 | **FR-11** | Kairos accumulates essential information about the user over time to personalize assistance. | Persistent profile storage and user controls are not implemented. |
@@ -64,16 +64,16 @@ IDs are stable to support references and revisions. Each criterion describes an 
 
 | Area | Intended first proof of concept | Current availability | Future work or exclusions |
 | --- | --- | --- | --- |
-| Event flow | Draft a commitment, activities before/after, clarifications, create the event, and deliver multiple reminders; Android is the planned first platform. | Backend multi-turn drafting workflow, scripted provider, optional Ollama adapter, CLI, and stateful HTTP API with PostgreSQL sessions. | Persistent event creation, notifications, and mobile app remain unimplemented; calendar integration and reminder delivery need definition. |
-| Interaction | Voice or text, plus in-app buttons and interactive components; Italian and English. | Backend, CLI, and HTTP API do not provide the requested mobile experience. | Voice UI and Android UI remain future work; Android Home Screen widgets are excluded for now. |
+| Event flow | Draft a commitment, activities before/after, clarify genuine ambiguity, create the event, and deliver reminders the user chose; Android is the planned first platform. | Backend multi-turn drafting, local playground templates, scripted provider, optional Ollama adapter, CLI, and stateful HTTP API with PostgreSQL sessions. | Persistent event creation, notifications, and mobile app remain unimplemented; calendar integration and reminder delivery need definition. |
+| Interaction | Voice or text, plus in-app buttons and interactive components; Italian and English. The user may provide any detail at any point. | Backend, CLI, and HTTP API support free text; the playground also has structured templates. The requested mobile experience is not implemented. | Voice UI and Android UI remain future work; Android Home Screen widgets are excluded for now. |
 | Profile | Retain essential information that helps personalize assistance. | No persistent profile; the workflow carries the current draft and latest question. | Profile contents and user controls remain undefined. |
 | Feedback | Not included in the current proof of concept. | Not implemented. | Feedback collection and review flow remain undefined. |
 | Guardrails | Reliable interpretation and safe handling of user input. | Field validation and a basic tool boundary exist; comprehensive prompt-injection protection is not implemented. | Broader safeguards and evaluation criteria remain undefined. |
 
 ## Open questions
 
-1. Which fields besides date and time are needed to complete an event? Which are required, and which require clarification?
-2. How should multiple reminders be added, changed, or removed, including the “no reminders” choice?
+1. Which fields besides title, date, and time are required to complete an event, and which remain optional?
+2. How should users add, change, or remove multiple reminders through the mobile interface?
 3. Must a draft always receive explicit confirmation before event creation? Where is the boundary between preparing a draft and creating a commitment?
 4. Which essential information may enter the profile, and what controls will the user have over it?
 5. Is guided onboarding part of the proof of concept? Which choices help without adding friction?
@@ -88,6 +88,7 @@ IDs are stable to support references and revisions. Each criterion describes an 
 | 25 October 2026 | Revision 0.2: updated language, streaming, and progress behavior and its implementation status. |
 | 25 October 2026 | Revision 0.3: documented the HTTP API and organized documentation by audience. |
 | 25 October 2026 | Revision 0.4: updated API persistence, implementation status, and scope. |
+| 26 October 2026 | Revision 0.5: introduced non-blocking draft guidance and structured playground templates. |
 
 ## Document management
 

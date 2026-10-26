@@ -49,7 +49,21 @@ curl -N http://127.0.0.1:8000/sessions/SESSION_UUID/turn \
   -d '{"message":"I need to take my motorcycle to the mechanic tomorrow"}'
 ```
 
-The response is Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` contains the persisted session and updated draft, and `error` reports a workflow or concurrency error. A completed state is committed before its SSE event is sent. `GET /sessions/SESSION_UUID` reads the current draft and session metadata. Only the current state is stored; chat messages and transcript history are not saved or sent to the model. The model receives the current user message, draft, and previous question.
+The response is Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` contains the persisted session, draft, and derived guidance, and `error` reports a workflow or concurrency error. A completed state is committed before its SSE event is sent. `GET /sessions/SESSION_UUID` reads the current draft, guidance, and session metadata. Only the current state is stored; chat messages and transcript history are not saved or sent to the model. The model receives the current user message, draft, and previous question as context, but the question does not restrict which fields can be updated.
+
+The turn endpoint also accepts a structured action so form controls can update a field without a model call. For example, a 2-hour reminder can be added with:
+
+```bash
+curl -N http://127.0.0.1:8000/sessions/SESSION_UUID/turn \
+  -H 'Content-Type: application/json' \
+  -d '{"action":{"type":"add_reminder","minutes_before":120}}'
+```
+
+The session response includes required fields still missing and localized templates for title, date, time, location, duration, reminders, and an explicitly described activity before or after the event. The user can ignore a template or submit any other free-text update instead. Structured actions are applied by Python without calling the model. An activity action includes its description and timing:
+
+```json
+{"action":{"type":"add_task","description":"Pick up the documents","timing":"before"}}
+```
 
 The local OpenAPI page is available at `http://127.0.0.1:8000/docs`.
 

@@ -93,6 +93,17 @@ button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px soli
 .state-pill.ready { color: #2d6549; background: #e8f4eb; }
 .question-box { padding: 10px 12px; margin: 0 0 13px; border-left: 3px solid var(--orange); background: var(--orange-soft); color: #755137; font-size: 12px; line-height: 1.5; }
 .question-box.hidden { display: none; }
+.draft-guidance { display: grid; gap: 10px; margin: 0 0 14px; }
+.required-missing { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #eadfbd; border-radius: 10px; background: #fbf8ed; color: #695d3a; font-size: 11px; line-height: 1.45; }
+.required-missing strong { font-size: 10px; }
+.draft-suggestions { display: grid; gap: 8px; }
+.draft-suggestion { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 10px; border: 1px solid #e5ebe4; border-radius: 11px; background: #f9fbf8; }
+.draft-suggestion label { grid-column: 1 / -1; }
+.draft-suggestion input, .draft-suggestion select { margin: 0; height: 36px; font-size: 11px; }
+.draft-suggestion .button { min-height: 36px; white-space: nowrap; font-size: 10px; padding: 0 10px; }
+.draft-suggestion.suggestion-add_reminder { grid-template-columns: minmax(55px, .65fr) minmax(90px, 1fr) auto auto; }
+.draft-suggestion.suggestion-add_reminder label { grid-column: 1 / -1; }
+.draft-guidance.hidden, .required-missing.hidden { display: none; }
 .task-removal-options { display: grid; gap: 7px; margin: -4px 0 14px; }
 .task-removal-options.hidden { display: none; }
 .task-removal-option { padding: 9px 11px; border: 1px solid #d9e4dc; border-radius: 9px; background: #fff; color: #3e5c4c; text-align: left; font-size: 11px; line-height: 1.4; }
@@ -172,4 +183,6 @@ pre { margin: 6px 0 0; color: #66736c; font: 10px/1.45 ui-monospace, SFMono-Regu
   .diagnostics-card { padding: 15px; }
   .diagnostics-heading { align-items: flex-start; flex-direction: column; }
   .draft-fields div { grid-template-columns: 80px minmax(0, 1fr); }
+  .draft-suggestion.suggestion-add_reminder { grid-template-columns: minmax(50px, .7fr) 1fr; }
+  .draft-suggestion.suggestion-add_reminder .button { grid-column: span 1; }
 }

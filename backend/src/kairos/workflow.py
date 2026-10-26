@@ -16,8 +16,50 @@ from kairos.contracts import (
     WorkflowEvent,
 )
 from kairos.i18n import Language, MessageId, translate
-from kairos.models.event import EventDraft
-from kairos.tools import ToolRegistry, event_tools
+from kairos.models.actions import (
+    AddReminderAction,
+    AddTaskAction,
+    ClearRemindersAction,
+    DraftAction,
+    SetDateAction,
+    SetDurationAction,
+    SetLocationAction,
+    SetTimeAction,
+    SetTitleAction,
+)
+from kairos.models.event import EventDraft, EventTask, ReminderDraft
+from kairos.tools import ToolRegistry, event_tools, message_requests_removal
+
+
+_REMINDER_INTERVAL = re.compile(
+    r"(?<!\w)(?P<amount>\d+)\s*(?P<unit>minutes?|mins?|minuti|minuto|"
+    r"hours?|hrs?|ora|ore|giorno|giorni|days?|settimana|settimane|weeks?)\s*(?:prima|before)\b",
+    re.IGNORECASE,
+)
+_CLOCK_TIME = re.compile(
+    r"\b(?:alle?|all'|ore|at|around)\s*\d{1,2}(?::\d{2})?(?:\s*(?:am|pm))?\b|"
+    r"\b\d{1,2}:\d{2}\b",
+    re.IGNORECASE,
+)
+_REMINDER_ADD_CUE = re.compile(
+    r"\b(?:aggiungi(?:\s+anche)?|add(?:\s+also)?)\b.{0,30}\b(?:promemoria|reminder)\b",
+    re.IGNORECASE,
+)
+
+
+def reminder_offsets_from_message(message: str) -> list[tuple[int, tuple[int, int]]]:
+    """Read explicit numeric reminder intervals without asking the model to do arithmetic."""
+    multipliers = {
+        "minute": 1, "minutes": 1, "min": 1, "mins": 1, "minuto": 1, "minuti": 1,
+        "hour": 60, "hours": 60, "hr": 60, "hrs": 60, "ora": 60, "ore": 60,
+        "day": 1440, "days": 1440, "giorno": 1440, "giorni": 1440,
+        "week": 10080, "weeks": 10080, "settimana": 10080, "settimane": 10080,
+    }
+    matches = []
+    for match in _REMINDER_INTERVAL.finditer(message):
+        unit = match.group("unit").casefold()
+        matches.append((int(match.group("amount")) * multipliers[unit], match.span()))
+    return matches
 
 
 def time_needs_clarification(draft: EventDraft) -> bool:
@@ -78,10 +120,18 @@ class EventWorkflow:
         self._validate_request(state, message, context)
         if task_id is not None and not state.pending_task_removal:
             raise WorkflowError(MessageId.INVALID_ARGUMENTS)
-        if state.pending_task_removal:
-            yield WorkflowEvent(kind="completed", state=self._resolve_task_removal(
-                state, message, context, task_id
-            ))
+        pending_tasks = [
+            task for task in state.draft.tasks if task.id in state.pending_task_removal
+        ]
+        if state.pending_task_removal and (
+            task_id is not None
+            or self._is_cancel_selection(message)
+            or self._task_selected_by_message(message, pending_tasks) is not None
+        ):
+            yield WorkflowEvent(
+                kind="completed",
+                state=self._resolve_task_removal(state, message, context, task_id),
+            )
             return
         yield WorkflowEvent(
             kind="progress", message=translate(MessageId.PROGRESS_START, context.language)
@@ -100,15 +150,11 @@ class EventWorkflow:
                 calls.append(event.tool_call)
 
         if len(calls) != 1:
-            if state.draft.reminders is None and self._next_question(state.draft) == MessageId.REMINDERS:
-                raise WorkflowError(MessageId.REMINDER_TOOL_COUNT)
             raise WorkflowError(MessageId.TOOL_COUNT)
         yield WorkflowEvent(
             kind="progress", message=translate(MessageId.PROGRESS_VALIDATE, context.language)
         )
-        call = calls[0]
-        if self._next_question(state.draft) == MessageId.REMINDERS:
-            call = self._prepare_reminder_call(call, state, context)
+        call = self._prepare_model_call(calls[0], state, context, message)
         turn_context = context.model_copy(update={"current_message": message})
         result = self.tools.execute(call, state, turn_context)
         candidate = result.draft
@@ -117,23 +163,112 @@ class EventWorkflow:
         if has_reminder_in_past(candidate, context.now):
             raise WorkflowError(MessageId.REMINDER_IN_PAST)
         language = result.conversation_language or state.conversation_language or context.language
+        requested_removal = message_requests_removal(message)
         pending_removal = result.pending_task_removal
-        question = result.clarification
+        if state.pending_task_removal and not requested_removal:
+            pending_removal = state.pending_task_removal
+        question = result.clarification or self._draft_validation_question(candidate, language)
         if pending_removal:
             question = self._task_removal_question(candidate, pending_removal, language)
-        elif question is None:
-            missing = self._next_question(candidate)
-            if missing:
-                question = translate(missing, language)
+        status = self._draft_status(candidate, question, pending_removal)
         completed = EventWorkflowState(
             draft=candidate,
-            status="collecting" if question else "ready_for_review",
+            status=status,
             question=question,
             conversation_language=language,
             turns=state.turns + 1,
             pending_task_removal=pending_removal,
         )
         yield WorkflowEvent(kind="completed", state=completed)
+
+    @staticmethod
+    def apply_action(
+        state: EventWorkflowState,
+        action: DraftAction,
+        context: RequestContext,
+        *,
+        max_turns: int = 20,
+    ) -> EventWorkflowState:
+        """Apply a playground template directly, without a model/provider call."""
+        if state.turns >= max_turns:
+            raise WorkflowError(MessageId.TURN_LIMIT)
+        if isinstance(action, SetTitleAction):
+            updates = {"title": action.value}
+        elif isinstance(action, SetDateAction):
+            updates = {"start_date": action.value}
+        elif isinstance(action, SetTimeAction):
+            updates = {"start_time": action.value}
+        elif isinstance(action, SetLocationAction):
+            updates = {"location": action.value}
+        elif isinstance(action, SetDurationAction):
+            updates = {"duration_minutes": action.value}
+        elif isinstance(action, AddReminderAction):
+            reminders = list(state.draft.reminders or [])
+            if not any(item.minutes_before == action.minutes_before for item in reminders):
+                reminders.append(ReminderDraft(minutes_before=action.minutes_before))
+            updates = {"reminders": reminders}
+        elif isinstance(action, AddTaskAction):
+            tasks = list(state.draft.tasks)
+            if not any(
+                item.description.casefold() == action.description.casefold()
+                and item.timing == action.timing
+                for item in tasks
+            ):
+                tasks.append(EventTask(description=action.description, timing=action.timing))
+            updates = {"tasks": tasks}
+        elif isinstance(action, ClearRemindersAction):
+            updates = {"reminders": []}
+        else:
+            raise WorkflowError(MessageId.INVALID_ARGUMENTS)
+
+        candidate = EventDraft.model_validate(state.draft.model_dump() | updates)
+        if candidate.timezone is None:
+            candidate.timezone = context.timezone
+        if has_reminder_in_past(candidate, context.now):
+            raise WorkflowError(MessageId.REMINDER_IN_PAST)
+        language = state.conversation_language or context.language
+        pending_removal = state.pending_task_removal
+        question = EventWorkflow._draft_validation_question(candidate, language)
+        if pending_removal:
+            question = EventWorkflow._task_removal_question(candidate, pending_removal, language)
+        return EventWorkflowState(
+            draft=candidate,
+            status=EventWorkflow._draft_status(candidate, question, pending_removal),
+            question=question,
+            conversation_language=language,
+            turns=state.turns + 1,
+            pending_task_removal=pending_removal,
+        )
+
+    @staticmethod
+    def _draft_status(draft: EventDraft, question: str | None, pending_removal: list[UUID]) -> str:
+        return (
+            "ready_for_review"
+            if EventWorkflow._draft_is_ready(draft) and question is None and not pending_removal
+            else "collecting"
+        )
+
+    @staticmethod
+    def _draft_is_ready(draft: EventDraft) -> bool:
+        if not draft.title or draft.start_date is None or draft.start_time is None or not draft.timezone:
+            return False
+        try:
+            ZoneInfo(draft.timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            return False
+        return not time_needs_clarification(draft)
+
+    @staticmethod
+    def _draft_validation_question(draft: EventDraft, language: Language) -> str | None:
+        if draft.timezone:
+            try:
+                ZoneInfo(draft.timezone)
+            except (ZoneInfoNotFoundError, ValueError):
+                return translate(MessageId.TIMEZONE, language)
+        if draft.start_date is not None and draft.start_time is not None:
+            if time_needs_clarification(draft):
+                return translate(MessageId.TIME, language)
+        return None
 
     async def advance(
         self,
@@ -178,12 +313,11 @@ class EventWorkflow:
             draft = state.draft.model_copy(update={
                 "tasks": [task for task in state.draft.tasks if task.id != selected.id]
             })
-            missing = EventWorkflow._next_question(draft)
             language = state.conversation_language or context.language
-            question = translate(missing, language) if missing else None
+            question = EventWorkflow._draft_validation_question(draft, language)
             return state.model_copy(update={
                 "draft": draft,
-                "status": "collecting" if question else "ready_for_review",
+                "status": EventWorkflow._draft_status(draft, question, []),
                 "question": question,
                 "pending_task_removal": [],
                 "turns": state.turns + 1,
@@ -191,14 +325,9 @@ class EventWorkflow:
 
         if EventWorkflow._is_cancel_selection(message):
             language = state.conversation_language or context.language
-            missing = EventWorkflow._next_question(state.draft)
-            question = (
-                translate(missing, language)
-                if missing
-                else translate(MessageId.TASK_SELECTION_CANCELLED, language)
-            )
+            question = EventWorkflow._draft_validation_question(state.draft, language)
             return state.model_copy(update={
-                "status": "collecting" if missing else "ready_for_review",
+                "status": EventWorkflow._draft_status(state.draft, question, []),
                 "question": question,
                 "pending_task_removal": [],
                 "turns": state.turns + 1,
@@ -206,20 +335,15 @@ class EventWorkflow:
 
         if not options:
             language = state.conversation_language or context.language
-            missing = EventWorkflow._next_question(state.draft)
-            question = translate(missing, language) if missing else None
+            question = EventWorkflow._draft_validation_question(state.draft, language)
             return state.model_copy(update={
-                "status": "collecting" if question else "ready_for_review",
+                "status": EventWorkflow._draft_status(state.draft, question, []),
                 "question": question,
                 "pending_task_removal": [],
                 "turns": state.turns + 1,
             })
 
-        language = state.conversation_language or context.language
-        question = EventWorkflow._task_removal_question(
-            state.draft, state.pending_task_removal, language
-        )
-        return state.model_copy(update={"question": question, "turns": state.turns + 1})
+        raise WorkflowError(MessageId.INVALID_ARGUMENTS)
 
     @staticmethod
     def _task_selected_by_message(message: str, options):
@@ -249,30 +373,10 @@ class EventWorkflow:
             raise WorkflowError(MessageId.INVALID_TIMEZONE) from exc
 
     @staticmethod
-    def _next_question(draft: EventDraft) -> MessageId | None:
-        if not draft.title:
-            return MessageId.TITLE
-        if draft.start_date is None:
-            return MessageId.START_DATE
-        if draft.start_time is None:
-            return MessageId.START_TIME
-        if draft.timezone is None:
-            return MessageId.TIMEZONE
-        try:
-            ZoneInfo(draft.timezone)
-        except (ZoneInfoNotFoundError, ValueError):
-            return MessageId.TIMEZONE
-        if time_needs_clarification(draft):
-            return MessageId.TIME
-        if draft.reminders is None:
-            return MessageId.REMINDERS
-        return None
-
-    @staticmethod
-    def _prepare_reminder_call(
-        call: ToolCall, state: EventWorkflowState, context: RequestContext
+    def _prepare_model_call(
+        call: ToolCall, state: EventWorkflowState, context: RequestContext, message: str
     ) -> ToolCall:
-        """Restrict a reminder answer to reminders and translate clock times to offsets."""
+        """Preserve all model-extracted facts and deterministically apply clear intervals."""
         if call.name != "update_event_draft":
             return call
         arguments = call.arguments
@@ -280,15 +384,37 @@ class EventWorkflow:
         if not isinstance(patch, dict):
             return call  # Let the normal tool validation report malformed arguments.
 
-        safe_arguments = {
-            "patch": {},
-            "conversation_language": arguments.get("conversation_language"),
-        }
-        if "clarification" in arguments:
-            safe_arguments["clarification"] = arguments["clarification"]
+        safe_arguments = dict(arguments)
+        safe_patch = dict(patch)
+        safe_arguments["patch"] = safe_patch
+
+        intervals = reminder_offsets_from_message(message)
+        if intervals:
+            offsets = [offset for offset, _ in intervals]
+            if _REMINDER_ADD_CUE.search(message) and state.draft.reminders:
+                offsets = list(dict.fromkeys(
+                    [item.minutes_before for item in state.draft.reminders] + offsets
+                ))
+            safe_patch["reminders"] = [{"minutes_before": offset} for offset in offsets]
+            without_intervals = _REMINDER_INTERVAL.sub(" ", message)
+            if not _CLOCK_TIME.search(without_intervals):
+                safe_patch.pop("start_time", None)
+            return ToolCall(name=call.name, arguments=safe_arguments)
 
         reminder_time_value = patch.get("start_time")
-        has_clock_time = "start_time" in patch and reminder_time_value is not None
+        legacy_reminder_question = state.question == translate(
+            MessageId.REMINDERS, state.conversation_language or context.language
+        )
+        explicit_reminder_clock = bool(re.search(
+            r"\b(?:promemoria|reminder)\b.{0,20}\b(?:alle?|at)\s*\d",
+            message,
+            re.IGNORECASE,
+        ))
+        has_clock_time = (
+            "start_time" in patch
+            and reminder_time_value is not None
+            and (legacy_reminder_question or explicit_reminder_clock)
+        )
         reminders_supplied = "reminders" in patch
         if has_clock_time:
             try:
@@ -298,20 +424,35 @@ class EventWorkflow:
                     else time.fromisoformat(reminder_time_value)
                 )
             except (TypeError, ValueError):
-                return EventWorkflow._unclear_reminder_call(arguments, state, context)
+                safe_patch.pop("start_time", None)
+                safe_arguments["clarification"] = translate(
+                    MessageId.REMINDER_CLOCK_TIME_UNCLEAR,
+                    state.conversation_language or context.language,
+                )
+                return ToolCall(name=call.name, arguments=safe_arguments)
 
             offset = EventWorkflow._minutes_before_for_clock_time(state.draft, reminder_time)
             if offset is None:
-                return EventWorkflow._unclear_reminder_call(arguments, state, context)
+                safe_patch.pop("start_time", None)
+                safe_arguments["clarification"] = translate(
+                    MessageId.REMINDER_CLOCK_TIME_UNCLEAR,
+                    state.conversation_language or context.language,
+                )
+                return ToolCall(name=call.name, arguments=safe_arguments)
             if reminders_supplied:
                 requested = patch["reminders"]
                 if requested is None:
                     reminders = []
                 elif not isinstance(requested, list):
-                    safe_arguments["patch"]["reminders"] = requested
+                    safe_patch["reminders"] = requested
                     return ToolCall(name=call.name, arguments=safe_arguments)
                 elif not requested:
-                    return EventWorkflow._unclear_reminder_call(arguments, state, context)
+                    safe_patch.pop("start_time", None)
+                    safe_arguments["clarification"] = translate(
+                        MessageId.REMINDER_CLOCK_TIME_UNCLEAR,
+                        state.conversation_language or context.language,
+                    )
+                    return ToolCall(name=call.name, arguments=safe_arguments)
                 else:
                     reminders = list(requested)
             else:
@@ -321,33 +462,10 @@ class EventWorkflow:
                 for item in reminders
             ):
                 reminders.append({"minutes_before": offset})
-            safe_arguments["patch"]["reminders"] = reminders
-        elif reminders_supplied:
-            safe_arguments["patch"]["reminders"] = patch["reminders"]
+            safe_patch["reminders"] = reminders
+            safe_patch.pop("start_time", None)
 
         return ToolCall(name=call.name, arguments=safe_arguments)
-
-    @staticmethod
-    def _unclear_reminder_call(
-        arguments: dict, state: EventWorkflowState, context: RequestContext
-    ) -> ToolCall:
-        raw_language = arguments.get("conversation_language")
-        try:
-            language = Language(raw_language) if raw_language is not None else None
-        except (TypeError, ValueError):
-            language = None
-        clarification = translate(
-            MessageId.REMINDER_CLOCK_TIME_UNCLEAR,
-            language or state.conversation_language or context.language,
-        )
-        return ToolCall(
-            name="update_event_draft",
-            arguments={
-                "patch": {},
-                "clarification": clarification,
-                "conversation_language": arguments.get("conversation_language"),
-            },
-        )
 
     @staticmethod
     def _minutes_before_for_clock_time(draft: EventDraft, reminder_time: time) -> int | None:

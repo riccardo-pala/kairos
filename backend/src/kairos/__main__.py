@@ -12,6 +12,7 @@ import httpx
 from kairos.providers import OllamaEventProvider, ScriptedEventProvider
 from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, WorkflowError
 from kairos.i18n import Language, MessageId, translate
+from kairos.models.guidance import build_draft_guidance
 from kairos.workflow import EventWorkflow
 
 
@@ -128,8 +129,16 @@ async def run(args):
                             state = event.state
                             if state.question:
                                 print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
-                            else:
+                            elif state.status == "ready_for_review":
                                 print(text(MessageId.CLI_READY))
+                            else:
+                                print(text(MessageId.CLI_DRAFT_UPDATED))
+                                missing = build_draft_guidance(
+                                    state.draft, state.conversation_language or context.language
+                                ).required_missing
+                                if missing:
+                                    labels = ", ".join(field.label for field in missing)
+                                    print(f"{text(MessageId.CLI_REQUIRED_FIELDS)}: {labels}")
                             print_draft(state, context.language, debug=debug_draft_json)
                 except WorkflowError as exc:
                     print(f"{text(MessageId.CLI_ERROR)}: {exc.text(context.language)}")
@@ -161,8 +170,10 @@ async def run(args):
                 state = await workflow.advance(state, message, context)
                 if state.question:
                     print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
-                else:
+                elif state.status == "ready_for_review":
                     print(text(MessageId.CLI_READY))
+                else:
+                    print(text(MessageId.CLI_DRAFT_UPDATED))
                 print_draft(state, context.language, debug=debug_draft_json)
 
 

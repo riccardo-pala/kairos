@@ -11,6 +11,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict
 
 from kairos.contracts import EventWorkflowState
 from kairos.i18n import Language
+from kairos.models.guidance import DraftGuidance, build_draft_guidance
 
 
 class SessionRecord(BaseModel):
@@ -20,6 +21,7 @@ class SessionRecord(BaseModel):
     language: Language
     timezone: str
     state: EventWorkflowState
+    guidance: DraftGuidance
     created_at: AwareDatetime
     updated_at: AwareDatetime
 
@@ -104,6 +106,10 @@ class SessionStore:
     def _record(row: dict) -> SessionRecord:
         values = dict(row)
         values["state"] = EventWorkflowState.model_validate(values["state"])
+        values["guidance"] = build_draft_guidance(
+            values["state"].draft,
+            Language(values["language"]),
+        )
         return SessionRecord.model_validate(values)
 
 
@@ -113,7 +119,7 @@ async def apply_migrations(pool: AsyncConnectionPool) -> None:
     migration_dir = (
         Path(configured_dir)
         if configured_dir
-        else Path(__file__).resolve().parents[2] / "migrations"
+        else Path(__file__).resolve().parents[3] / "migrations"
     )
     migrations = sorted(migration_dir.glob("*.sql"))
     if not migrations:

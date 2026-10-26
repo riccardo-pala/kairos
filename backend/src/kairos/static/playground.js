@@ -28,6 +28,7 @@ function setBusy(busy, message = "") {
   sendButton.disabled = busy || !state.session;
   messageInput.disabled = busy || !state.session;
   document.querySelectorAll(".task-removal-option").forEach((button) => { button.disabled = busy; });
+  document.querySelectorAll(".draft-suggestion button, .draft-suggestion input, .draft-suggestion select").forEach((control) => { control.disabled = busy; });
   turnStatus.classList.toggle("busy", busy);
   const label = turnStatus.querySelector("span:last-child");
   label.textContent = message || (busy ? "In corso…" : "In attesa");
@@ -89,6 +90,7 @@ function renderSession(session) {
   const question = $("#current-question");
   question.textContent = session.state.question || "";
   question.classList.toggle("hidden", !session.state.question);
+  renderGuidance(session);
   renderTaskRemovalOptions(session.state);
   const draft = session.state.draft;
   const values = {
@@ -107,6 +109,128 @@ function renderSession(session) {
   sendButton.disabled = state.busy;
   messageInput.disabled = state.busy;
   if (!state.busy) messageInput.focus();
+}
+
+function renderGuidance(session) {
+  const guidance = session.guidance || { required_missing: [], suggestions: [] };
+  const section = $("#draft-guidance");
+  const required = $("#required-missing");
+  const requiredFields = guidance.required_missing || [];
+  $("#required-title").textContent = guidance.required_title || "";
+  $("#required-fields").textContent = requiredFields.map((field) => field.label).join(" · ");
+  required.classList.toggle("hidden", requiredFields.length === 0);
+
+  const container = $("#draft-suggestions");
+  container.replaceChildren();
+  (guidance.suggestions || []).forEach((suggestion) => {
+    const form = document.createElement("form");
+    form.className = "draft-suggestion";
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = form.querySelector("input");
+      const value = input?.value.trim();
+      if (!value) return;
+      let action;
+      let display;
+      if (suggestion.id === "set_title") {
+        action = { type: "set_title", value: value };
+        display = suggestion.label + ": " + value;
+      } else if (suggestion.id === "set_date") {
+        action = { type: "set_date", value: value };
+        display = suggestion.label + ": " + value;
+      } else if (suggestion.id === "set_time") {
+        action = { type: "set_time", value: value };
+        display = suggestion.label + ": " + value;
+      } else if (suggestion.id === "set_location") {
+        action = { type: "set_location", value: value };
+        display = suggestion.label + ": " + value;
+      } else if (suggestion.id === "set_duration") {
+        const minutes = Number(value);
+        if (!Number.isSafeInteger(minutes) || minutes <= 0) return;
+        action = { type: "set_duration", value: minutes };
+        display = suggestion.label + ": " + minutes + " min";
+      } else if (suggestion.id === "add_reminder") {
+        const amount = Number(value);
+        const unit = form.querySelector("select");
+        const selected = suggestion.units.find((option) => option.value === unit.value);
+        if (!Number.isSafeInteger(amount) || amount < 0 || !selected || !Number.isSafeInteger(selected.minutes)) return;
+        const minutes = amount * selected.minutes;
+        if (!Number.isSafeInteger(minutes)) return;
+        action = { type: "add_reminder", minutes_before: minutes };
+        display = suggestion.label + ": " + amount + " " + selected.label + " " + (state.session.language === "it" ? "prima" : "before");
+      } else if (suggestion.id === "add_task") {
+        const timing = form.querySelector("select");
+        const selected = suggestion.timings.find((option) => option.value === timing.value);
+        if (!value || !selected) return;
+        action = { type: "add_task", description: value, timing: selected.value };
+        display = suggestion.label + " (" + selected.label.toLowerCase() + "): " + value;
+      }
+      if (action) submitStructuredAction(action, display);
+    });
+
+    const label = document.createElement("label");
+    label.textContent = suggestion.label;
+    const input = document.createElement("input");
+    input.type = suggestion.input_type === "date" ? "date"
+      : suggestion.input_type === "time" ? "time"
+        : suggestion.input_type === "duration" || suggestion.input_type === "reminder" ? "number" : "text";
+    input.placeholder = suggestion.placeholder || "";
+    input.autocomplete = "off";
+    input.required = true;
+    if (input.type === "number") {
+      input.min = suggestion.input_type === "reminder" ? "0" : "1";
+      input.step = "1";
+    }
+    label.append(input);
+    form.append(label);
+
+    if (suggestion.input_type === "reminder" || suggestion.input_type === "task") {
+      const unit = document.createElement("select");
+      unit.setAttribute("aria-label", suggestion.label);
+      const options = suggestion.input_type === "task" ? suggestion.timings : suggestion.units;
+      (options || []).forEach((optionData) => {
+        const option = document.createElement("option");
+        option.value = optionData.value;
+        option.textContent = optionData.label;
+        unit.append(option);
+      });
+      form.append(unit);
+    }
+
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "button button-secondary";
+    save.textContent = suggestion.submit_label;
+    form.append(save);
+
+    if (suggestion.clear_label) {
+      const clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "button button-quiet";
+      clear.textContent = suggestion.clear_label;
+      clear.addEventListener("click", () => submitStructuredAction(
+        { type: "clear_reminders" }, suggestion.clear_label
+      ));
+      form.append(clear);
+    }
+
+    container.append(form);
+  });
+  section.classList.toggle("hidden", requiredFields.length === 0 && !guidance.suggestions?.length);
+}
+
+function defaultAssistantReply(session) {
+  const missing = session.guidance?.required_missing || [];
+  const language = session.language;
+  if (missing.length) {
+    const labels = missing.map((field) => field.label).join(", ");
+    return language === "it"
+      ? "Bozza aggiornata. Per completarla mancano: " + labels + ". Puoi aggiungerli quando vuoi o indicare altri dettagli."
+      : "Draft updated. Still needed: " + labels + ". Add them whenever you like, or provide any other details.";
+  }
+  return language === "it"
+    ? "Bozza aggiornata. Puoi aggiungere altri dettagli quando vuoi."
+    : "Draft updated. You can add more details whenever you like.";
 }
 
 function renderTaskRemovalOptions(workflowState) {
@@ -232,13 +356,23 @@ async function sendTurn(event) {
   if (!state.session || !message || state.busy) return;
   const taskId = state.selectedTaskId;
   state.selectedTaskId = null;
-  addMessage("user", message);
   messageInput.value = "";
+  await submitTurn({ message, ...(taskId ? { task_id: taskId } : {}) }, message);
+}
+
+function submitStructuredAction(action, displayMessage) {
+  if (!state.session || state.busy) return;
+  return submitTurn({ action: action }, displayMessage);
+}
+
+async function submitTurn(requestBody, displayMessage) {
+  if (!state.session || state.busy) return;
+  addMessage("user", displayMessage);
   state.assistantText = "";
   state.assistantNode = null;
   clearProgressMessage();
   state.requestId = "";
-  setBusy(true, "Invio messaggio…");
+  setBusy(true, requestBody.message ? "Invio messaggio…" : "Aggiorno la bozza…");
   turnStatus.classList.remove("error");
   const events = [];
   renderRawEvents(events);
@@ -248,7 +382,7 @@ async function sendTurn(event) {
     const response = await fetch(`/sessions/${encodeURIComponent(state.session.id)}/turn`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ message, ...(taskId ? { task_id: taskId } : {}) }),
+      body: JSON.stringify(requestBody),
     });
     state.requestId = response.headers.get("X-Request-ID") || "";
     $("#request-id-badge").textContent = state.requestId || "ID non disponibile";
@@ -318,7 +452,7 @@ async function consumeTurnWithLazyText(response, events, getBubble, setBubble) {
       if (bubble && question && !state.assistantText.includes(question)) {
         state.assistantText += `${state.assistantText ? "\n\n" : ""}${question}`;
         bubble.textContent = state.assistantText;
-      } else if (!bubble) addMessage("assistant", question || "La bozza è aggiornata.");
+      } else if (!bubble) addMessage("assistant", question || defaultAssistantReply(data.session));
       setBusy(false, data.session?.state?.status === "ready_for_review" ? "Bozza pronta" : "Bozza aggiornata");
     }
     if (name === "error") {

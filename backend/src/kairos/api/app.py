@@ -1,18 +1,13 @@
-"""Local HTTP adapter for persisted, multi-turn event drafting sessions."""
+"""FastAPI application factory and HTTP routes."""
 
 import json
-import os
-import sys
-from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
-from threading import Lock
 from time import perf_counter
-from typing import Annotated, Literal, TypeAlias
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, status
@@ -20,17 +15,21 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, WorkflowError
+from kairos.contracts import (
+    EventWorkflowState,
+    RequestContext,
+    ToolCall,
+    WorkflowError,
+    WorkflowEvent,
+)
 from kairos.i18n import Language, MessageId, translate
-from kairos.provider_store import (
+from kairos.models.actions import DraftAction
+from kairos.providers import HuggingFaceEventProvider, OllamaEventProvider, ScriptedEventProvider
+from kairos.stores import (
     ProviderProfile,
     ProviderProfileNotFound,
     ProviderProfileStore,
-)
-from kairos.providers import HuggingFaceEventProvider, OllamaEventProvider, ScriptedEventProvider
-from kairos.session_store import (
     SessionConflict,
     SessionNotFound,
     SessionRecord,
@@ -39,165 +38,48 @@ from kairos.session_store import (
 )
 from kairos.workflow import EventWorkflow
 
+from kairos.api.diagnostics import (
+    _bounded_log_data,
+    _emit_log,
+    _log_api_response_data,
+    _record_api_request_data,
+    clear_diagnostics,
+    read_diagnostics,
+)
+from kairos.api.schemas import (
+    CompletedSSE,
+    CreateSessionRequest,
+    ErrorSSE,
+    HealthResponse,
+    ProgressSSE,
+    TextSSE,
+    TurnRequest,
+    WorkflowSSE,
+)
+from kairos.api.settings import APISettings
 
-DEFAULT_DATABASE_URL = "postgresql://kairos:kairos-local@localhost:5432/kairos"
-MAX_API_LOG_BYTES = 8 * 1024
-MAX_DIAGNOSTIC_ENTRIES = 500
-MAX_DIAGNOSTIC_ENTRY_FIELD_BYTES = 16 * 1024
-SENSITIVE_LOG_KEYS = {"authorization", "token", "hf_token", "access_token"}
-PACKAGE_STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+PACKAGE_STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 STATIC_DIR = PACKAGE_STATIC_DIR if PACKAGE_STATIC_DIR.is_dir() else Path("/app/static")
-DIAGNOSTIC_LOGS: deque[dict] = deque(maxlen=MAX_DIAGNOSTIC_ENTRIES)
-DIAGNOSTIC_LOGS_LOCK = Lock()
-
-
-def _emit_log(event: str, **fields: object) -> None:
-    """Write one structured JSON record to container stdout."""
-    record = {
-        "timestamp": datetime.now(UTC).isoformat(timespec="milliseconds"),
-        "event": event,
-        **fields,
-    }
-    sanitized = _sanitize_log_data(record)
-    buffered = dict(sanitized)
-    for key in ("data", "body", "response_body_excerpt"):
-        if key in buffered:
-            max_bytes = 1_200 if key == "response_body_excerpt" else MAX_DIAGNOSTIC_ENTRY_FIELD_BYTES
-            buffered[key] = _bounded_log_data(buffered[key], max_bytes=max_bytes)
-    with DIAGNOSTIC_LOGS_LOCK:
-        DIAGNOSTIC_LOGS.append(buffered)
-    print(json.dumps(sanitized, ensure_ascii=False, default=str), file=sys.stdout, flush=True)
-
-
-def _sanitize_log_data(value: object) -> object:
-    if isinstance(value, dict):
-        return {
-            key: "[REDACTED]" if str(key).lower() in SENSITIVE_LOG_KEYS else _sanitize_log_data(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_sanitize_log_data(item) for item in value]
-    return value
-
-
-def _bounded_log_data(value: object, *, max_bytes: int = MAX_API_LOG_BYTES) -> object:
-    sanitized = _sanitize_log_data(value)
-    encoded = json.dumps(sanitized, ensure_ascii=False, default=str).encode("utf-8")
-    if len(encoded) <= max_bytes:
-        return sanitized
-    return {
-        "truncated": True,
-        "max_bytes": max_bytes,
-        "preview": encoded[:max_bytes].decode("utf-8", errors="ignore"),
-    }
-
-
-def _record_api_request_data(request: Request, data: object) -> None:
-    if request.app.state.configuration.debug_api_logs:
-        request.state.api_request_data = _bounded_log_data(data)
-
-
-def _log_api_response_data(request: Request, data: object) -> None:
-    if request.app.state.configuration.debug_api_logs:
-        _emit_log(
-            "api.response_data",
-            request_id=request.state.request_id,
-            data=_bounded_log_data(data),
-        )
-
-
-class APISettings(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    database_url: str
-    hf_token: SecretStr | None = None
-    debug_api_logs: bool = False
-    debug_connector_logs: bool = False
-    debug_internal_logs: bool = False
-
-    @staticmethod
-    def _env_enabled(name: str) -> bool:
-        return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
-    @classmethod
-    def from_env(cls) -> "APISettings":
-        database_url = os.getenv("DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
-        token = os.getenv("HF_TOKEN", "").strip()
-        return cls(
-            database_url=database_url,
-            hf_token=SecretStr(token) if token else None,
-            debug_api_logs=cls._env_enabled("PLAYGROUND_DEBUG_API_LOGS"),
-            debug_connector_logs=cls._env_enabled("PLAYGROUND_DEBUG_CONNECTOR_LOGS"),
-            debug_internal_logs=cls._env_enabled("PLAYGROUND_DEBUG_INTERNAL_LOGS"),
-        )
-
-
-class CreateSessionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    language: Language = Language.IT
-    timezone: str = Field(min_length=1, max_length=128)
-
-    @field_validator("timezone")
-    @classmethod
-    def require_iana_timezone(cls, value: str) -> str:
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError) as exc:
-            raise ValueError("Timezone must be a valid IANA name.") from exc
-        return value
-
-
-class TurnRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    message: str = Field(min_length=1, max_length=8_000)
-    task_id: UUID | None = Field(
-        default=None,
-        description="Stable task ID selected while answering a pending task-removal question.",
-    )
-
-    @field_validator("message")
-    @classmethod
-    def require_non_whitespace(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Message must not be blank.")
-        return value
-
-
-class HealthResponse(BaseModel):
-    status: Literal["ok"] = "ok"
-
-
-class ProgressSSE(BaseModel):
-    event: Literal["progress"] = "progress"
-    message: str
-
-
-class TextSSE(BaseModel):
-    event: Literal["text"] = "text"
-    text: str
-
-
-class CompletedSSE(BaseModel):
-    event: Literal["completed"] = "completed"
-    session: SessionRecord
-
-
-class ErrorSSE(BaseModel):
-    event: Literal["error"] = "error"
-    code: str
-    message: str
-
-
-WorkflowSSE: TypeAlias = Annotated[
-    ProgressSSE | TextSSE | CompletedSSE | ErrorSSE,
-    Field(discriminator="event"),
-]
 
 
 def _encode_sse(event: WorkflowSSE) -> str:
     return f"event: {event.event}\ndata: {event.model_dump_json(exclude={'event'})}\n\n"
+
+
+async def _action_events(
+    state: EventWorkflowState,
+    action: DraftAction,
+    context: RequestContext,
+) -> AsyncIterator[WorkflowEvent]:
+    yield WorkflowEvent(
+        kind="progress",
+        message=translate(MessageId.PROGRESS_ACTION, context.language),
+    )
+    yield WorkflowEvent(
+        kind="completed",
+        state=EventWorkflow.apply_action(state, action, context),
+    )
 
 
 def _development_provider(state: EventWorkflowState, language: Language, timezone: str, now: datetime):
@@ -214,10 +96,6 @@ def _development_provider(state: EventWorkflowState, language: Language, timezon
         patch["timezone"] = timezone
     if patch:
         call = ToolCall(name="update_event_draft", arguments={"patch": patch})
-    elif draft.reminders is None:
-        call = ToolCall(name="update_event_draft", arguments={
-            "patch": {"reminders": [{"minutes_before": 60}]}
-        })
     else:
         call = ToolCall(name="ask_event_clarification", arguments={
             "question": translate(MessageId.API_DEMO_LIMIT, language)
@@ -335,21 +213,12 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         return HealthResponse()
 
     @app.get("/admin/diagnostics", tags=["local-admin"])
-    async def read_diagnostics(
-        request_id: str | None = Query(default=None, max_length=128),
-    ) -> dict[str, object]:
-        with DIAGNOSTIC_LOGS_LOCK:
-            entries = list(DIAGNOSTIC_LOGS)
-        if request_id:
-            entries = [entry for entry in entries if entry.get("request_id") == request_id]
-        return {"items": list(reversed(entries)), "capacity": MAX_DIAGNOSTIC_ENTRIES}
+    async def diagnostics(request_id: str | None = Query(default=None, max_length=128)) -> dict[str, object]:
+        return read_diagnostics(request_id)
 
     @app.delete("/admin/diagnostics", tags=["local-admin"])
-    async def clear_diagnostics() -> dict[str, int]:
-        with DIAGNOSTIC_LOGS_LOCK:
-            cleared = len(DIAGNOSTIC_LOGS)
-            DIAGNOSTIC_LOGS.clear()
-        return {"cleared": cleared}
+    async def diagnostics_clear() -> dict[str, int]:
+        return clear_diagnostics()
 
     @app.get("/admin/provider-profiles", response_model=list[ProviderProfile], tags=["local-admin"])
     async def list_provider_profiles(request: Request) -> list[ProviderProfile]:
@@ -426,7 +295,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         now = datetime.now(ZoneInfo(session.timezone))
         context = RequestContext(now=now, language=session.language, timezone=session.timezone)
         configured: APISettings = request.app.state.configuration
-        profile: ProviderProfile = await request.app.state.provider_profile_store.get_active()
+        profile: ProviderProfile | None = None
+        workflow: EventWorkflow | None = None
         request_id = request.state.request_id
 
         def internal_log(event: str, **fields: object) -> None:
@@ -447,11 +317,13 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 )
             return _encode_sse(event)
 
-        internal_log(
-            "internal.provider_selected",
-            provider=profile.provider_type,
-            model=profile.model,
-        )
+        if body.message is not None:
+            profile = await request.app.state.provider_profile_store.get_active()
+            internal_log(
+                "internal.provider_selected",
+                provider=profile.provider_type,
+                model=profile.model,
+            )
 
         def model_io_callback(direction: str, content: str) -> None:
             try:
@@ -473,39 +345,51 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             safe_details = dict(details)
             _emit_log("connector.failure", request_id=request_id, **safe_details)
 
-        model_io = model_io_callback if configured.debug_connector_logs else None
-        if profile.provider_type == "ollama":
-            provider = OllamaEventProvider(
-                profile.model,
-                request.app.state.ollama_http_client,
-                endpoint_url=profile.endpoint_url,
-                model_io_callback=model_io,
-                failure_callback=provider_failure_callback,
-                debug_connector_logs=configured.debug_connector_logs,
-            )
-        elif profile.provider_type == "huggingface":
-            token = configured.hf_token.get_secret_value() if configured.hf_token else None
-            provider = HuggingFaceEventProvider(
-                profile.model,
-                token,
-                request.app.state.hf_http_client,
-                model_io_callback=model_io,
-                failure_callback=provider_failure_callback,
-                debug_connector_logs=configured.debug_connector_logs,
-            )
-        else:
-            provider = _development_provider(session.state, session.language, session.timezone, now)
-        workflow = EventWorkflow(provider)
+        if profile is not None:
+            model_io = model_io_callback if configured.debug_connector_logs else None
+            if profile.provider_type == "ollama":
+                provider = OllamaEventProvider(
+                    profile.model,
+                    request.app.state.ollama_http_client,
+                    endpoint_url=profile.endpoint_url,
+                    model_io_callback=model_io,
+                    failure_callback=provider_failure_callback,
+                    debug_connector_logs=configured.debug_connector_logs,
+                )
+            elif profile.provider_type == "huggingface":
+                token = configured.hf_token.get_secret_value() if configured.hf_token else None
+                provider = HuggingFaceEventProvider(
+                    profile.model,
+                    token,
+                    request.app.state.hf_http_client,
+                    model_io_callback=model_io,
+                    failure_callback=provider_failure_callback,
+                    debug_connector_logs=configured.debug_connector_logs,
+                )
+            else:
+                provider = _development_provider(session.state, session.language, session.timezone, now)
+            workflow = EventWorkflow(provider)
+
+        provider_name = profile.provider_type if profile is not None else "structured_action"
+        model_name = profile.model if profile is not None else None
 
         async def stream() -> AsyncIterator[str]:
             turn_started_at = perf_counter()
             try:
-                async for item in workflow.stream_advance(
-                    session.state, body.message, context, task_id=body.task_id
-                ):
+                if body.action is not None:
+                    items = _action_events(session.state, body.action, context)
+                elif workflow is not None and body.message is not None:
+                    items = workflow.stream_advance(
+                        session.state, body.message, context, task_id=body.task_id
+                    )
+                else:
+                    raise WorkflowError(MessageId.INVALID_ARGUMENTS)
+                async for item in items:
                     if item.kind == "progress":
                         phase = (
-                            "validation"
+                            "structured_action"
+                            if body.action is not None
+                            else "validation"
                             if item.message == translate(MessageId.PROGRESS_VALIDATE, context.language)
                             else "model_request"
                         )
@@ -529,8 +413,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                                 request_id=request_id,
                                 outcome="error",
                                 code="session_conflict",
-                                provider=profile.provider_type,
-                                model=profile.model,
+                                provider=provider_name,
+                                model=model_name,
                                 elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
                             )
                             yield encode_and_log_sse(ErrorSSE(
@@ -545,8 +429,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                                 request_id=request_id,
                                 outcome="error",
                                 code="session_not_found",
-                                provider=profile.provider_type,
-                                model=profile.model,
+                                provider=provider_name,
+                                model=model_name,
                                 elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
                             )
                             yield encode_and_log_sse(ErrorSSE(
@@ -566,8 +450,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                             "workflow.terminal",
                             request_id=request_id,
                             outcome="completed",
-                            provider=profile.provider_type,
-                            model=profile.model,
+                            provider=provider_name,
+                            model=model_name,
                             elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
                         )
                         yield encode_and_log_sse(CompletedSSE(session=saved))
@@ -587,8 +471,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                     request_id=request_id,
                     outcome="error",
                     code=exc.code.value,
-                    provider=profile.provider_type,
-                    model=profile.model,
+                    provider=provider_name,
+                    model=model_name,
                     elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
                 )
                 yield encode_and_log_sse(ErrorSSE(code=exc.code.value, message=exc.text(session.language)))
@@ -604,8 +488,8 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                     outcome="error",
                     code="internal_error",
                     exception_type=type(exc).__name__,
-                    provider=profile.provider_type,
-                    model=profile.model,
+                    provider=provider_name,
+                    model=model_name,
                     elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
                 )
                 yield encode_and_log_sse(ErrorSSE(

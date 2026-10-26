@@ -66,10 +66,7 @@ class EventDraftPatch(BaseModel):
     start_date: date | None = None
     start_time: time | None = Field(
         default=None,
-        description=(
-            "Event's local start time, except while answering the reminder question: "
-            "then an explicit clock time carries the requested reminder time and is converted to minutes_before."
-        ),
+        description="Event's local start time. Reminder intervals belong in patch.reminders.",
     )
     timezone: str | None = None
     location: str | None = None
@@ -136,7 +133,7 @@ def update_event_draft(
 
     if arguments.task_operations.remove:
         if not _is_grounded_removal(arguments.task_operations.remove_evidence, context.current_message):
-            if _message_requests_removal(context.current_message):
+            if message_requests_removal(context.current_message):
                 clarification = clarification or translate(MessageId.TASK_REMOVAL_UNCLEAR, language)
         elif not tasks:
             clarification = clarification or translate(MessageId.TASK_REMOVAL_NONE, language)
@@ -149,23 +146,15 @@ def update_event_draft(
             else:
                 pending_removal = [task.id for task in tasks]
 
-    rejected_addition = False
     existing = {(_normalize_quote(task.description), task.timing) for task in tasks}
     for proposal in arguments.task_operations.add:
         if not _is_grounded_addition(proposal, context.current_message, data.get("title")):
-            rejected_addition = True
             continue
         key = (_normalize_quote(proposal.description), proposal.timing)
         if key not in existing:
             tasks.append(EventTask(description=proposal.description, timing=proposal.timing))
             existing.add(key)
 
-    if (
-        rejected_addition
-        and clarification is None
-        and any(cue.search(context.current_message) for cue in _RELATION_CUES.values())
-    ):
-        clarification = translate(MessageId.TASK_ADDITION_UNCLEAR, language)
     data["tasks"] = tasks
     candidate = EventDraft.model_validate(data)
     return ToolResult(
@@ -207,7 +196,7 @@ def _is_grounded_removal(evidence: str | None, message: str) -> bool:
     )
 
 
-def _message_requests_removal(message: str) -> bool:
+def message_requests_removal(message: str) -> bool:
     return bool(_REMOVAL_CUE.search(message)) and not _NEGATED_REMOVAL.search(message)
 
 
@@ -252,11 +241,9 @@ def event_tools() -> ToolRegistry:
         ToolDefinition(
             name="update_event_draft",
             description=(
-                "Update explicit non-task event fields in patch; change activities only with "
-                "top-level task_operations.add/remove. When answering a reminder question, "
-                "change reminders only; an absolute reminder clock time may use patch.start_time, "
-                "which Python converts without changing the event time. Omit unchanged fields. "
-                "Never save or schedule an event."
+                "Update every explicit event field from the current message in patch; omit unchanged fields. "
+                "Use task_operations only for explicit separate before/after activities. Reminder intervals "
+                "go in patch.reminders. Never save or schedule an event."
             ),
             arguments_model=UpdateEventArguments,
             handler=update_event_draft,
