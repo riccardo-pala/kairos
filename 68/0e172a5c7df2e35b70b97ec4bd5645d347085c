@@ -1,0 +1,42 @@
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_1a6b0af6d2f749 82
+backend/src/kairos/static/index.html
+  s_bff12bdde01e92::t_d054c30ae1f668 70
+  s_bff12bdde01e92::t_a378a599489bc2 74
+  s_bff12bdde01e92::t_b0573e31725a67 6-7,13-16,18-21,27-29,56,65-68,88,108,138,160
+backend/src/kairos/models/guidance.py
+  s_bff12bdde01e92::t_1a6b0af6d2f749 87-91,124,133
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_18c2c4dfe136ea 62
+backend/src/kairos/static/playground.js
+  s_bff12bdde01e92::t_0f1d387c1a5784 11-13,34,52,134,136-139,141-186,189-191,193-196,198-200,204-275,277-287,289-300,302-313,315-318,326-332,334-357,366,371,373-375,377-384,392,400
+  s_bff12bdde01e92::t_046b98c035d8f5 197,361-364,367-368,376
+  s_bff12bdde01e92::t_843e3e3ac6aa2f 553
+  s_bff12bdde01e92::t_3bededdd42c64d 597-601,614
+  s_bff12bdde01e92::t_1a6b0af6d2f749 47,71-90,97,103,125,276,314,319-325
+  s_bff12bdde01e92::t_56f4e7a9c305f8 132,140,202-203
+  s_bff12bdde01e92::t_a9b7f3e5952137 474-476,479-481,509,511
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_18c2c4dfe136ea 74-75
+backend/src/kairos/static/playground.css
+  s_bff12bdde01e92::t_18064f66b26118 3-7,9-20,25-26,29,32-51,53-59,61-73,75-79,81-91,93-101,103-111,113-118,120-129,131-132,134,136-139,141-143,145-149,152,154,157-163,165-179,181-191,193-198,200-206,208-238,240-241,243-248,250-252,254-257
+  s_bff12bdde01e92::t_79f76fba76765e 119,133,239
+  s_bff12bdde01e92::t_5e19a4f13576e7 8
+  s_bff12bdde01e92::t_312d89aa6f0462 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "680e172a5c7df2e35b70b97ec4bd5645d347085c",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
