@@ -32,6 +32,18 @@ Compose passes `HF_TOKEN` to the API container. Kairos does not store it in Post
 
 The admin endpoints have no authentication and must only be used with the local API bound to localhost. Switching the active profile affects the next API turn; it does not require a container restart. HF usage and credits are managed separately in your Hugging Face account.
 
+## API logs and model diagnostics
+
+The API writes structured JSON log lines to container stdout. Routine Uvicorn access logs are disabled and successful `/health` checks are omitted. When API logging is enabled, health-check failures remain visible. Other HTTP requests include a request ID, method, route, response status, and elapsed time. Since SSE turns return HTTP 200 even when workflow processing fails, the API also logs each turn's terminal `completed` or `error` outcome with the same request ID.
+
+All three diagnostic categories are off by default and are enabled independently. For HTTP metadata only, add this to `.env.local`:
+
+```dotenv
+DEBUG_API_LOGS=true
+```
+
+Restart Compose with `docker compose --env-file .env.local up`. `DEBUG_API_LOGS` writes request/response metadata and SSE terminal outcomes with a shared request ID; successful health checks remain quiet. It also logs validated JSON request bodies, successful JSON response data, and each SSE event name and data without buffering or replacing the stream. Each logged body/event payload is capped at 8 KiB; fields named `authorization`, `token`, `hf_token`, or `access_token` are redacted. Request and response payloads can still contain user messages and session drafts, so treat these logs as sensitive. Enable `DEBUG_CONNECTOR_LOGS=true` separately to record provider requests, aggregated responses, and failures. These payload logs include prompts and user text, so enable them only for local diagnosis and treat the output as sensitive. Authorization headers and the Hugging Face token are never logged. Provider failures include provider, model, exception type, and HTTP status when available; connector logging also adds an HTTP error-body excerpt capped at 1,200 characters. Enable `DEBUG_INTERNAL_LOGS=true` separately to record provider selection plus workflow progress, validation, and persistence outcomes without logging the prompt or user message. Turning on one category does not enable the others.
+
 ## Database and service configuration
 
 `DATABASE_URL` configures the API's PostgreSQL connection; Compose sets it to the `db` service. For direct local Uvicorn execution, the default URL is `postgresql://kairos:kairos-local@localhost:5432/kairos`. `API_PORT` and `POSTGRES_HOST_PORT` change the host ports. `MIGRATIONS_DIR` optionally overrides the backend's default migration directory. `.env.local` is ignored by Git and is used here for secrets such as `HF_TOKEN`.

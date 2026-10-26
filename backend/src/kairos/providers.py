@@ -122,6 +122,8 @@ class OllamaEventProvider:
         options: dict | None = None,
         metrics_callback: Callable[[OllamaMetrics], None] | None = None,
         model_io_callback: Callable[[str, str], None] | None = None,
+        failure_callback: Callable[[dict], None] | None = None,
+        debug_connector_logs: bool = False,
     ):
         self.model = model
         self.client = client
@@ -133,6 +135,8 @@ class OllamaEventProvider:
         self.options = options
         self.metrics_callback = metrics_callback
         self.model_io_callback = model_io_callback
+        self.failure_callback = failure_callback
+        self.debug_connector_logs = debug_connector_logs
 
     async def stream_propose(
         self, message: str, state: EventWorkflowState, context: RequestContext, tools: list[dict]
@@ -167,10 +171,13 @@ class OllamaEventProvider:
         self._trace("request", json.dumps(payload, ensure_ascii=False, indent=2))
         received_done = False
         response_status = None
+        response_excerpt = None
         debug_frames: list[dict] | None = [] if self.model_io_callback is not None else None
         try:
             async with self.client.stream("POST", self.endpoint_url, json=payload) as response:
                 response_status = response.status_code
+                if response.is_error and self.debug_connector_logs:
+                    response_excerpt = (await response.aread()).decode("utf-8", errors="replace")[:1200]
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line.strip():
@@ -211,8 +218,10 @@ class OllamaEventProvider:
             if not received_done:
                 raise ValueError("Ollama stream ended before its done frame")
         except httpx.HTTPError as exc:
+            self._trace_failure(exc, response_status, response_excerpt)
             raise WorkflowError(MessageId.MODEL_UNAVAILABLE) from exc
         except (KeyError, TypeError, ValueError, json.JSONDecodeError, ValidationError) as exc:
+            self._trace_failure(exc, response_status, None)
             raise WorkflowError(MessageId.INVALID_TOOL_CALL) from exc
         finally:
             if debug_frames is not None:
@@ -224,6 +233,16 @@ class OllamaEventProvider:
     def _trace(self, direction: str, content: str) -> None:
         if self.model_io_callback is not None:
             self.model_io_callback(direction, content)
+
+    def _trace_failure(self, exc: Exception, status: int | None, body: str | None) -> None:
+        if self.failure_callback is not None:
+            self.failure_callback({
+                "provider": "ollama",
+                "model": self.model,
+                "exception_type": type(exc).__name__,
+                "http_status": status,
+                "response_body_excerpt": body,
+            })
 
     @staticmethod
     def _frame_for_debug(frame: dict) -> str:
@@ -275,17 +294,22 @@ class HuggingFaceEventProvider:
         *,
         system_prompt: str | None = None,
         model_io_callback: Callable[[str, str], None] | None = None,
+        failure_callback: Callable[[dict], None] | None = None,
+        debug_connector_logs: bool = False,
     ):
         self.model = model
         self.token = token
         self.client = client
         self.system_prompt = system_prompt if system_prompt is not None else SYSTEM_PROMPT
         self.model_io_callback = model_io_callback
+        self.failure_callback = failure_callback
+        self.debug_connector_logs = debug_connector_logs
 
     async def stream_propose(
         self, message: str, state: EventWorkflowState, context: RequestContext, tools: list[dict]
     ) -> AsyncIterator[ProviderEvent]:
         if not self.token:
+            self._trace_failure(RuntimeError("HF_TOKEN is not configured"), None, None)
             raise WorkflowError(MessageId.MODEL_UNAVAILABLE)
 
         request_context = {
@@ -308,6 +332,7 @@ class HuggingFaceEventProvider:
         }
         self._trace("request", json.dumps(payload, ensure_ascii=False, indent=2))
         response_status = None
+        response_excerpt = None
         frame_count = 0
         response_text: list[str] = []
         tool_calls: dict[int, dict[str, str]] = {}
@@ -324,6 +349,11 @@ class HuggingFaceEventProvider:
                 },
             ) as response:
                 response_status = response.status_code
+                if response.is_error and self.debug_connector_logs:
+                    raw_body = (await response.aread()).decode("utf-8", errors="replace")
+                    if self.token:
+                        raw_body = raw_body.replace(self.token, "[REDACTED]")
+                    response_excerpt = raw_body[:1200]
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line.startswith("data:"):
@@ -390,8 +420,10 @@ class HuggingFaceEventProvider:
                     tool_call=ToolCall(name=call["name"], arguments=arguments),
                 )
         except httpx.HTTPError as exc:
+            self._trace_failure(exc, response_status, response_excerpt)
             raise WorkflowError(MessageId.MODEL_UNAVAILABLE) from exc
         except (KeyError, TypeError, ValueError, json.JSONDecodeError, ValidationError) as exc:
+            self._trace_failure(exc, response_status, None)
             raise WorkflowError(MessageId.INVALID_TOOL_CALL) from exc
         finally:
             if self.model_io_callback is not None:
@@ -418,7 +450,19 @@ class HuggingFaceEventProvider:
 
     def _trace(self, direction: str, content: str) -> None:
         if self.model_io_callback is not None:
+            if self.token:
+                content = content.replace(self.token, "[REDACTED]")
             self.model_io_callback(direction, content)
+
+    def _trace_failure(self, exc: Exception, status: int | None, body: str | None) -> None:
+        if self.failure_callback is not None:
+            self.failure_callback({
+                "provider": "huggingface",
+                "model": self.model,
+                "exception_type": type(exc).__name__,
+                "http_status": status,
+                "response_body_excerpt": body,
+            })
 
 
 class ScriptedEventProvider:

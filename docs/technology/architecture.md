@@ -54,6 +54,8 @@ Migration `002_create_provider_profiles.sql` inserts three built-in provider pro
 
 The local-only administrative endpoints are `GET /admin/provider-profiles` and `POST /admin/provider-profiles/{profile_id}/activate`. They have no authentication and are safe only while the API remains bound to localhost. `HF_TOKEN` authenticates Hugging Face requests. The CLI still selects Ollama directly through its CLI argument and does not use the database profiles.
 
+Three independent settings, all false by default, control API diagnostics. `DEBUG_API_LOGS` emits structured HTTP metadata, bounded request/response payloads, SSE event names/data, and terminal outcomes with a shared request ID; successful health checks stay silent and Uvicorn access logs are disabled. Payloads are capped at 8 KiB and common credential fields are redacted, but request/response data can contain user messages and session drafts. `DEBUG_CONNECTOR_LOGS` emits provider requests, aggregated responses, and failure details including status and a bounded HTTP body excerpt. Connector payloads may contain the system prompt and user text; Authorization headers and provider tokens are excluded. `DEBUG_INTERNAL_LOGS` records provider choice, workflow progress, validation, and persistence outcomes without request content. Each setting controls only its own category.
+
 `DATABASE_URL` configures the PostgreSQL connection; its local default is `postgresql://kairos:kairos-local@localhost:5432/kairos`. Docker Compose uses the database service hostname and a named volume. Both API and database ports bind to localhost. The prototype has no authentication or retention policy and is not ready for Internet exposure; retention and account-level authorization remain out of scope.
 
 ## Language behavior

@@ -23,6 +23,9 @@ services:
       DATABASE_URL: postgresql://kairos:kairos-local@db:5432/kairos
       MIGRATIONS_DIR: /app/migrations
       HF_TOKEN: ${HF_TOKEN:-}
+      DEBUG_API_LOGS: "true"
+      DEBUG_CONNECTOR_LOGS: "true"
+      DEBUG_INTERNAL_LOGS: "true"
     depends_on:
       db:
         condition: service_healthy

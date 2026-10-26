@@ -1,10 +1,12 @@
 """Local HTTP adapter for persisted, multi-turn event drafting sessions."""
 
-import logging
+import json
 import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
+from time import perf_counter
 from typing import Annotated, Literal, TypeAlias
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -34,8 +36,51 @@ from kairos.session_store import (
 from kairos.workflow import EventWorkflow
 
 
-logger = logging.getLogger(__name__)
 DEFAULT_DATABASE_URL = "postgresql://kairos:kairos-local@localhost:5432/kairos"
+MAX_API_LOG_BYTES = 8 * 1024
+SENSITIVE_LOG_KEYS = {"authorization", "token", "hf_token", "access_token"}
+
+
+def _emit_log(event: str, **fields: object) -> None:
+    """Write one structured JSON record to container stdout."""
+    print(json.dumps({"event": event, **fields}, ensure_ascii=False, default=str), file=sys.stdout, flush=True)
+
+
+def _sanitize_log_data(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if str(key).lower() in SENSITIVE_LOG_KEYS else _sanitize_log_data(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_log_data(item) for item in value]
+    return value
+
+
+def _bounded_log_data(value: object) -> object:
+    sanitized = _sanitize_log_data(value)
+    encoded = json.dumps(sanitized, ensure_ascii=False, default=str).encode("utf-8")
+    if len(encoded) <= MAX_API_LOG_BYTES:
+        return sanitized
+    return {
+        "truncated": True,
+        "max_bytes": MAX_API_LOG_BYTES,
+        "preview": encoded[:MAX_API_LOG_BYTES].decode("utf-8", errors="ignore"),
+    }
+
+
+def _record_api_request_data(request: Request, data: object) -> None:
+    if request.app.state.configuration.debug_api_logs:
+        request.state.api_request_data = _bounded_log_data(data)
+
+
+def _log_api_response_data(request: Request, data: object) -> None:
+    if request.app.state.configuration.debug_api_logs:
+        _emit_log(
+            "api.response_data",
+            request_id=request.state.request_id,
+            data=_bounded_log_data(data),
+        )
 
 
 class APISettings(BaseModel):
@@ -43,6 +88,13 @@ class APISettings(BaseModel):
 
     database_url: str
     hf_token: SecretStr | None = None
+    debug_api_logs: bool = False
+    debug_connector_logs: bool = False
+    debug_internal_logs: bool = False
+
+    @staticmethod
+    def _env_enabled(name: str) -> bool:
+        return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
     @classmethod
     def from_env(cls) -> "APISettings":
@@ -51,6 +103,9 @@ class APISettings(BaseModel):
         return cls(
             database_url=database_url,
             hf_token=SecretStr(token) if token else None,
+            debug_api_logs=cls._env_enabled("DEBUG_API_LOGS"),
+            debug_connector_logs=cls._env_enabled("DEBUG_CONNECTOR_LOGS"),
+            debug_internal_logs=cls._env_enabled("DEBUG_INTERNAL_LOGS"),
         )
 
 
@@ -179,18 +234,74 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     app = FastAPI(title="Kairos drafting API", lifespan=lifespan)
     app.state.configuration = configuration
 
+    @app.middleware("http")
+    async def request_diagnostics(request: Request, call_next):
+        request_id = str(uuid4())
+        request.state.request_id = request_id
+        started_at = perf_counter()
+        is_health = request.url.path == "/health"
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            if configuration.debug_api_logs and not is_health:
+                request_data = getattr(request.state, "api_request_data", None)
+                _emit_log(
+                    "api.request",
+                    request_id=request_id,
+                    method=request.method,
+                    route=request.url.path,
+                    **({"body": request_data} if request_data is not None else {}),
+                )
+                _emit_log(
+                    "api.response",
+                    request_id=request_id,
+                    method=request.method,
+                    route=request.url.path,
+                    status=500,
+                    elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+                    exception_type=type(exc).__name__,
+                )
+            raise
+        response.headers["X-Request-ID"] = request_id
+        if configuration.debug_api_logs and (not is_health or response.status_code >= 400):
+            route = request.scope.get("route")
+            request_data = getattr(request.state, "api_request_data", None)
+            _emit_log(
+                "api.request",
+                request_id=request_id,
+                method=request.method,
+                route=getattr(route, "path", request.url.path),
+                **({"body": request_data} if request_data is not None else {}),
+            )
+            _emit_log(
+                "api.response",
+                request_id=request_id,
+                method=request.method,
+                route=getattr(route, "path", request.url.path),
+                status=response.status_code,
+                elapsed_ms=round((perf_counter() - started_at) * 1000, 2),
+            )
+        return response
+
     @app.get("/health", response_model=HealthResponse)
     async def health(request: Request) -> HealthResponse:
         try:
             await request.app.state.session_store.ping()
         except Exception as exc:
-            logger.error("Database health check failed (%s)", type(exc).__name__)
+            if request.app.state.configuration.debug_api_logs:
+                _emit_log(
+                    "api.health_failure",
+                    request_id=getattr(request.state, "request_id", None),
+                    exception_type=type(exc).__name__,
+                )
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable") from exc
         return HealthResponse()
 
     @app.get("/admin/provider-profiles", response_model=list[ProviderProfile], tags=["local-admin"])
     async def list_provider_profiles(request: Request) -> list[ProviderProfile]:
-        return await request.app.state.provider_profile_store.list_profiles()
+        profiles = await request.app.state.provider_profile_store.list_profiles()
+        _log_api_response_data(request, [profile.model_dump(mode="json") for profile in profiles])
+        return profiles
 
     @app.post(
         "/admin/provider-profiles/{profile_id}/activate",
@@ -213,7 +324,9 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 detail="HF_TOKEN is not configured for the API.",
             )
         try:
-            return await profile_store.activate(profile_id)
+            activated = await profile_store.activate(profile_id)
+            _log_api_response_data(request, activated.model_dump(mode="json"))
+            return activated
         except ProviderProfileNotFound as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -226,17 +339,22 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         status_code=status.HTTP_201_CREATED,
     )
     async def create_session(body: CreateSessionRequest, request: Request) -> SessionRecord:
-        return await request.app.state.session_store.create(
+        _record_api_request_data(request, body.model_dump(mode="json"))
+        session = await request.app.state.session_store.create(
             session_id=uuid4(),
             language=body.language,
             timezone=body.timezone,
             state=EventWorkflowState(),
         )
+        _log_api_response_data(request, session.model_dump(mode="json"))
+        return session
 
     @app.get("/sessions/{session_id}", response_model=SessionRecord)
     async def get_session(session_id: UUID, request: Request) -> SessionRecord:
         try:
-            return await request.app.state.session_store.get(session_id)
+            session = await request.app.state.session_store.get(session_id)
+            _log_api_response_data(request, session.model_dump(mode="json"))
+            return session
         except SessionNotFound as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
 
@@ -244,6 +362,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     async def session_turn(
         session_id: UUID, body: TurnRequest, request: Request
     ) -> StreamingResponse:
+        _record_api_request_data(request, body.model_dump(mode="json"))
         store: SessionStore = request.app.state.session_store
         try:
             session = await store.get(session_id)
@@ -254,11 +373,61 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         context = RequestContext(now=now, language=session.language, timezone=session.timezone)
         configured: APISettings = request.app.state.configuration
         profile: ProviderProfile = await request.app.state.provider_profile_store.get_active()
+        request_id = request.state.request_id
+
+        def internal_log(event: str, **fields: object) -> None:
+            if configured.debug_internal_logs:
+                _emit_log(event, request_id=request_id, **fields)
+
+        def api_log(event: str, **fields: object) -> None:
+            if configured.debug_api_logs:
+                _emit_log(event, **fields)
+
+        def encode_and_log_sse(event: WorkflowSSE) -> str:
+            if configured.debug_api_logs:
+                _emit_log(
+                    "api.response_event",
+                    request_id=request_id,
+                    sse_event=event.event,
+                    data=_bounded_log_data(event.model_dump(mode="json", exclude={"event"})),
+                )
+            return _encode_sse(event)
+
+        internal_log(
+            "internal.provider_selected",
+            provider=profile.provider_type,
+            model=profile.model,
+        )
+
+        def model_io_callback(direction: str, content: str) -> None:
+            try:
+                payload = json.loads(content)
+            except json.JSONDecodeError:
+                payload = content
+            _emit_log(
+                f"connector.{direction}",
+                request_id=request_id,
+                provider=profile.provider_type,
+                model=profile.model,
+                direction=direction,
+                data=payload,
+            )
+
+        def provider_failure_callback(details: dict) -> None:
+            if not configured.debug_connector_logs:
+                return
+            safe_details = dict(details)
+            _emit_log("connector.failure", request_id=request_id, **safe_details)
+
+        model_io = model_io_callback if configured.debug_connector_logs else None
         if profile.provider_type == "ollama":
             provider = OllamaEventProvider(
                 profile.model,
                 request.app.state.ollama_http_client,
                 endpoint_url=profile.endpoint_url,
+                model_io_callback=model_io,
+                failure_callback=provider_failure_callback,
+                debug_connector_logs=configured.debug_connector_logs,
             )
         elif profile.provider_type == "huggingface":
             token = configured.hf_token.get_secret_value() if configured.hf_token else None
@@ -266,19 +435,31 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 profile.model,
                 token,
                 request.app.state.hf_http_client,
+                model_io_callback=model_io,
+                failure_callback=provider_failure_callback,
+                debug_connector_logs=configured.debug_connector_logs,
             )
         else:
             provider = _development_provider(session.state, session.language, session.timezone, now)
         workflow = EventWorkflow(provider)
 
         async def stream() -> AsyncIterator[str]:
+            turn_started_at = perf_counter()
             try:
                 async for item in workflow.stream_advance(session.state, body.message, context):
                     if item.kind == "progress":
-                        yield _encode_sse(ProgressSSE(message=item.message))
+                        phase = (
+                            "validation"
+                            if item.message == translate(MessageId.PROGRESS_VALIDATE, context.language)
+                            else "model_request"
+                        )
+                        internal_log("internal.workflow_progress", phase=phase)
+                        yield encode_and_log_sse(ProgressSSE(message=item.message))
                     elif item.kind == "text":
-                        yield _encode_sse(TextSSE(text=item.text))
+                        yield encode_and_log_sse(TextSSE(text=item.text))
                     elif item.kind == "completed":
+                        internal_log("internal.validation", outcome="accepted")
+                        internal_log("internal.persistence", outcome="saving")
                         try:
                             saved = await store.save_state(
                                 session.id,
@@ -286,23 +467,92 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                                 state=item.state,
                             )
                         except SessionConflict:
-                            yield _encode_sse(ErrorSSE(
+                            internal_log("internal.persistence", outcome="conflict")
+                            api_log(
+                                "workflow.terminal",
+                                request_id=request_id,
+                                outcome="error",
+                                code="session_conflict",
+                                provider=profile.provider_type,
+                                model=profile.model,
+                                elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
+                            )
+                            yield encode_and_log_sse(ErrorSSE(
                                 code="session_conflict",
                                 message=translate(MessageId.API_SESSION_CONFLICT, session.language),
                             ))
                             return
                         except SessionNotFound:
-                            yield _encode_sse(ErrorSSE(
+                            internal_log("internal.persistence", outcome="session_not_found")
+                            api_log(
+                                "workflow.terminal",
+                                request_id=request_id,
+                                outcome="error",
+                                code="session_not_found",
+                                provider=profile.provider_type,
+                                model=profile.model,
+                                elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
+                            )
+                            yield encode_and_log_sse(ErrorSSE(
                                 code="session_not_found",
                                 message=translate(MessageId.API_SESSION_NOT_FOUND, session.language),
                             ))
                             return
-                        yield _encode_sse(CompletedSSE(session=saved))
+                        except Exception as exc:
+                            internal_log(
+                                "internal.persistence",
+                                outcome="failed",
+                                exception_type=type(exc).__name__,
+                            )
+                            raise
+                        internal_log("internal.persistence", outcome="committed")
+                        api_log(
+                            "workflow.terminal",
+                            request_id=request_id,
+                            outcome="completed",
+                            provider=profile.provider_type,
+                            model=profile.model,
+                            elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
+                        )
+                        yield encode_and_log_sse(CompletedSSE(session=saved))
             except WorkflowError as exc:
-                yield _encode_sse(ErrorSSE(code=exc.code.value, message=exc.text(session.language)))
+                internal_log("internal.workflow_failure", code=exc.code.value)
+                if exc.code in {
+                    MessageId.INVALID_ARGUMENTS,
+                    MessageId.INVALID_TOOL_CALL,
+                    MessageId.REMINDER_IN_PAST,
+                    MessageId.REMINDER_TOOL_COUNT,
+                    MessageId.TOOL_COUNT,
+                    MessageId.TOOL_NOT_ALLOWED,
+                }:
+                    internal_log("internal.validation", outcome="rejected", code=exc.code.value)
+                api_log(
+                    "workflow.terminal",
+                    request_id=request_id,
+                    outcome="error",
+                    code=exc.code.value,
+                    provider=profile.provider_type,
+                    model=profile.model,
+                    elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
+                )
+                yield encode_and_log_sse(ErrorSSE(code=exc.code.value, message=exc.text(session.language)))
             except Exception as exc:
-                logger.error("Unhandled error while streaming a session turn (%s)", type(exc).__name__)
-                yield _encode_sse(ErrorSSE(
+                internal_log(
+                    "internal.workflow_failure",
+                    code="internal_error",
+                    exception_type=type(exc).__name__,
+                )
+                api_log(
+                    "workflow.terminal",
+                    request_id=request_id,
+                    outcome="error",
+                    code="internal_error",
+                    exception_type=type(exc).__name__,
+                    provider=profile.provider_type,
+                    model=profile.model,
+                    elapsed_ms=round((perf_counter() - turn_started_at) * 1000, 2),
+                )
+                yield encode_and_log_sse(ErrorSSE(
                     code="internal_error",
                     message=translate(MessageId.API_INTERNAL_ERROR, session.language),
                 ))
