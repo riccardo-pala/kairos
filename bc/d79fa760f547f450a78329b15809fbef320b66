@@ -1,0 +1,71 @@
+compose.yaml
+  s_bff12bdde01e92::t_7ad1cdda3a8d59 23-24,32
+  s_bff12bdde01e92::t_5817941820768e 25
+backend/src/kairos/providers.py
+  s_bff12bdde01e92::t_a99e8c50fee096 265-361,363-372,375-423
+  s_bff12bdde01e92::t_eb5207a861b05a 362,373-374
+  s_bff12bdde01e92::t_b38a9e23ddbedf 119,128-130,172
+backend/migrations/002_create_provider_profiles.sql
+  s_bff12bdde01e92::t_adbb012411e1b1 19-27
+  s_bff12bdde01e92::t_d6e7b6d01bc542 1-6,8-15
+  s_bff12bdde01e92::t_5754fc1d80fe29 7,16-18
+backend/src/kairos/locales/messages.json
+  s_bff12bdde01e92::t_6b749bfbf42e57 43
+docs/usage/local-infrastructure.md
+  s_bff12bdde01e92::t_5817941820768e 17,19,22,32-33
+  s_bff12bdde01e92::t_f3e1380fdeb4d8 3,25,37
+  s_bff12bdde01e92::t_ce84510a34fd2f 15,31
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_f3e1380fdeb4d8 67-68,70-71
+  s_bff12bdde01e92::t_f7d9c849ea8412 57,59,61-62,64-65,73-74
+  s_bff12bdde01e92::t_b37398d228df31 34
+  s_bff12bdde01e92::t_ce84510a34fd2f 56,58,60,63,66,69,72
+  s_bff12bdde01e92::t_6aa5a77c03e662 75
+backend/src/kairos/api.py
+  s_bff12bdde01e92::t_adbb012411e1b1 17
+  s_bff12bdde01e92::t_b38a9e23ddbedf 166,261
+  s_bff12bdde01e92::t_fd60de5802dcb1 21-26,45,50,53,164-165,167-170,173-176,191-222,256-257,259-260,262-268
+  s_bff12bdde01e92::t_7ad1cdda3a8d59 49
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_5817941820768e 12,14,17,51,54
+  s_bff12bdde01e92::t_6b749bfbf42e57 21,37
+  s_bff12bdde01e92::t_7ad1cdda3a8d59 57
+  s_bff12bdde01e92::t_ce84510a34fd2f 53,55
+  s_bff12bdde01e92::t_f60e3584cd9fc0 56
+README.md
+  s_bff12bdde01e92::t_7217ba8be39533 7,12
+backend/src/kairos/session_store.py
+  s_bff12bdde01e92::t_7ad1cdda3a8d59 112
+backend/src/kairos/provider_store.py
+  s_bff12bdde01e92::t_878deb27fcc24d 61-65,67-74
+  s_bff12bdde01e92::t_d6e7b6d01bc542 2-3,5-37,39-50,52,54-60,76-79,81-86,90,96-98
+  s_bff12bdde01e92::t_adbb012411e1b1 4
+  s_bff12bdde01e92::t_b38a9e23ddbedf 1,38,51,53,66,75,80,87-89,91-95,99-100
+docs/functional/decision-log.md
+  s_bff12bdde01e92::t_7217ba8be39533 73-74,77,79
+  s_bff12bdde01e92::t_ce84510a34fd2f 75-76
+  s_bff12bdde01e92::t_0a69f1ee61756a 78
+  s_bff12bdde01e92::t_8f848ae85ffffa 71
+  s_bff12bdde01e92::t_f50f834a5c5360 80-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bcd79fa760f547f450a78329b15809fbef320b66",
+  "prompts": {},
+  "humans": {
+    "h_2c303d13c1af0a": {
+      "author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  },
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
