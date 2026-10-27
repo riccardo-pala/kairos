@@ -8,6 +8,8 @@ See [Start and use the module](docs/usage/module-guide.md) for the CLI and API, 
 
 With the local Compose stack running, open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the developer playground. It uses the existing API and is intended for localhost development only.
 
+Try the [public simulated playground](https://riccardo-pala.github.io/kairos/) or read the [public demo guide](docs/usage/public-demo.md). The simulation runs the shared Python workflow in your browser and makes no model calls.
+
 ## Documentation
 
 - [Start and use the module](docs/usage/module-guide.md): Python setup, CLI, and HTTP API usage.

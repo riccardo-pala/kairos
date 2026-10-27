@@ -14,7 +14,7 @@ Compose binds the API to `127.0.0.1:8000` and PostgreSQL to `127.0.0.1:5432`. Po
 
 Open the local developer playground at [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Create a session (Italian and `Europe/Rome` are preselected), describe an event, and follow the streamed progress and response. The page also lets you inspect and activate a built-in provider, review the validated draft and raw SSE events, and filter local diagnostic records by the turn's request ID. The playground and admin endpoints are unauthenticated developer tools; use only with this localhost-bound Compose setup.
 
-The provider-profile migration installs three built-in choices: the active deterministic Demo profile, local Ollama (`qwen3:8b` at `http://host.docker.internal:11434`), and Hugging Face (`Qwen/Qwen3-8B`). Demo checks the HTTP flow but does not interpret arbitrary messages. The profiles and current selection are stored in PostgreSQL and persist across container restarts. Select one through the local admin API described in the [module guide](module-guide.md).
+Database migrations leave two real-provider profiles: local Ollama (`qwen3:8b` at `http://host.docker.internal:11434`) and Hugging Face (`Qwen/Qwen3-8B`). Migration `003` removes the historical demo profile, preserving an active real provider or selecting Ollama if necessary. The simulated provider is used only by the browser demo. The profiles and current selection are stored in PostgreSQL and persist across container restarts. Select one through the local admin API described in the [module guide](module-guide.md).
 
 ## Debug the API locally with VS Code
 

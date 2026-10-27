@@ -5,19 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f6f8ff">
     <title>kAIros Playground</title>
-    <link rel="stylesheet" href="/static/playground.css">
-    <script src="/static/playground.js" defer></script>
+    <link rel="stylesheet" href="./static/playground.css">
+    <script type="module" src="./static/playground.js"></script>
   </head>
-  <body>
+  <body data-mode="live">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="kAIros Playground, pagina iniziale">
-        <img class="brand-logo" src="/static/kairos-logo.png" alt="kAIros" width="96" height="96">
+      <a class="brand" href="./" aria-label="kAIros Playground, pagina iniziale">
+        <img class="brand-logo" src="./static/kairos-logo.png" alt="kAIros" width="96" height="96">
         <span class="brand-divider" aria-hidden="true"></span>
         <span class="brand-product">Playground</span>
       </a>
       <div class="header-context">
-        <a class="header-link" href="#diagnostics-title">Diagnostica <span aria-hidden="true">↗</span></a>
-        <span class="local-badge"><span aria-hidden="true"></span> Ambiente locale</span>
+        <label class="language-picker"><span class="sr-only" data-i18n="language">Lingua</span>
+          <select id="language-select" aria-label="Lingua / Language">
+            <option value="it">🇮🇹 Italiano</option><option value="en">🇬🇧 English</option>
+          </select>
+        </label>
+        <span class="local-badge"><span aria-hidden="true"></span> <span id="environment-label">Ambiente locale</span></span>
       </div>
     </header>
 
@@ -28,60 +32,23 @@
           <h1 id="page-title">Dai forma <span>al tuo tempo.</span></h1>
           <p class="intro">Racconta il tuo impegno. kAIros raccoglie i dettagli,<br class="desktop-break"> tu scegli come completarli.</p>
         </div>
-        <div class="session-controls card">
-          <div class="control-grid">
-            <label>
-              Lingua
-              <select id="language-select">
-                <option value="it" selected>Italiano</option>
-                <option value="en">English</option>
-              </select>
-            </label>
+      </section>
+      <p id="demo-notice" class="demo-notice hidden"><strong>Demo pubblica simulata.</strong> Scegli un esempio o usa i controlli della bozza. Risposte e attesa sono simulate; nessun modello viene chiamato. <span id="demo-runtime-status" role="status"></span></p>
+      <div class="workspace-grid">
+        <aside class="side-column" aria-label="Sessione e bozza">
+        <section class="session-controls card" aria-labelledby="session-title">
+          <h2 id="session-title" class="session-title">La tua sessione</h2>
+          <div class="control-grid session-timezone">
             <label>
               Fuso orario
-              <input id="timezone-input" value="Europe/Rome" maxlength="128" autocomplete="off">
+              <select id="timezone-select"><option value="Europe/Rome">Europe/Rome</option><option value="UTC">UTC</option></select>
             </label>
           </div>
-          <button class="button button-primary button-wide" id="create-session" type="button">
+          <button class="button button-primary button-wide" id="create-session" type="button" disabled>
             <span aria-hidden="true">＋</span> Crea sessione
           </button>
           <p class="session-id-line"><span>Sessione</span><code id="session-id">Nessuna sessione</code></p>
-        </div>
-      </section>
-
-      <div class="workspace-grid">
-        <section class="conversation-card card" aria-labelledby="conversation-title">
-          <div class="section-heading conversation-heading">
-            <div>
-              <p class="eyebrow">IL TUO SPAZIO</p>
-              <h2 id="conversation-title">Conversazione</h2>
-            </div>
-            <div class="stream-indicator" id="turn-status" role="status" aria-live="polite">
-              <span class="status-dot" aria-hidden="true"></span><span>In attesa</span>
-            </div>
-          </div>
-          <div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions text">
-            <div class="empty-state" id="conversation-empty">
-              <span class="empty-logo-wrap" aria-hidden="true"><img src="/static/kairos-logo.png" alt="" width="164" height="164"></span>
-              <strong>Da un pensiero a un impegno.</strong>
-              <p>Crea una sessione, poi racconta cosa hai in programma.</p>
-              <p class="empty-example">“Devo andare dal meccanico domani”</p>
-            </div>
-            <div id="chat-guidance" class="chat-guidance hidden" aria-live="polite"></div>
-          </div>
-          <form id="turn-form" class="composer">
-            <label class="sr-only" for="message-input">Il tuo messaggio</label>
-            <textarea id="message-input" rows="2" maxlength="8000" placeholder="Scrivi un messaggio o aggiungi altri dettagli…" disabled required></textarea>
-            <div class="composer-footer">
-              <span class="hint">Invio per spedire · Maiusc+Invio per andare a capo</span>
-              <button class="button button-primary" id="send-message" type="submit" disabled>
-                Invia <span aria-hidden="true">↗</span>
-              </button>
-            </div>
-          </form>
         </section>
-
-        <aside class="side-column" aria-label="Stato sessione e strumenti">
           <section class="card draft-card" aria-labelledby="draft-title">
             <div class="section-heading">
               <div>
@@ -101,23 +68,50 @@
               <div><dt>Promemoria</dt><dd data-field="reminders">—</dd></div>
             </dl>
           </section>
-
-          <section class="card provider-card" aria-labelledby="provider-title">
-            <div class="section-heading compact-heading">
-              <div>
-                <p class="eyebrow">CONFIGURAZIONE</p>
-                <h2 id="provider-title">Provider attivo</h2>
-              </div>
-              <button class="icon-button" id="refresh-profiles" type="button" aria-label="Aggiorna elenco provider" title="Aggiorna elenco">↻</button>
+        </aside>
+        <section class="conversation-card card" aria-labelledby="conversation-title">
+          <div class="section-heading conversation-heading">
+            <div>
+              <p class="eyebrow">IL TUO SPAZIO</p>
+              <h2 id="conversation-title">Conversazione</h2>
             </div>
-            <label class="sr-only" for="provider-select">Seleziona provider</label>
-            <select id="provider-select" disabled>
-              <option value="">Caricamento…</option>
-            </select>
-            <button class="button button-secondary button-wide" id="activate-provider" type="button" disabled>Attiva selezione</button>
-            <p id="provider-status" class="inline-status" role="status" aria-live="polite">Carico i profili disponibili…</p>
+            <div class="stream-indicator" id="turn-status" role="status" aria-live="polite">
+              <span class="status-dot" aria-hidden="true"></span><span>In attesa</span>
+            </div>
+          </div>
+<!-- LIVE:PROVIDER -->
+          <section class="provider-controls" data-live-only aria-label="Provider della chat">
+            <label for="provider-select">Provider attivo</label>
+            <select id="provider-select" disabled><option value="">Caricamento…</option></select>
+            <button class="button button-secondary" id="activate-provider" type="button" disabled>Attiva</button>
+            <button class="icon-button" id="refresh-profiles" type="button" aria-label="Aggiorna elenco provider">↻</button>
+            <p id="provider-status" class="inline-status" role="status">Carico i profili disponibili…</p>
           </section>
-
+          <!-- /LIVE:PROVIDER -->
+          <div id="demo-examples" class="demo-examples hidden"></div>
+          <div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions text">
+            <div class="empty-state" id="conversation-empty">
+              <span class="empty-logo-wrap" aria-hidden="true"><img src="./static/kairos-logo.png" alt="" width="164" height="164"></span>
+              <strong>Da un pensiero a un impegno.</strong>
+              <p>Crea una sessione, poi racconta cosa hai in programma.</p>
+              <p class="empty-example">“Devo andare dal meccanico domani”</p>
+            </div>
+            <div id="chat-guidance" class="chat-guidance hidden" aria-live="polite"></div>
+          </div>
+          <form id="turn-form" class="composer">
+            <label class="sr-only" for="message-input">Il tuo messaggio</label>
+            <textarea id="message-input" rows="2" maxlength="8000" placeholder="Scrivi un messaggio o aggiungi altri dettagli…" disabled required></textarea>
+            <div class="composer-footer">
+              <span class="hint">Invio per spedire · Maiusc+Invio per andare a capo</span>
+              <button class="button button-primary" id="send-message" type="submit" disabled>
+                Invia <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+<!-- LIVE:DEBUG -->
+      <div class="debug-tools" data-live-only>
           <details class="card inspector-card" id="raw-panel">
             <summary>
               <span><span class="eyebrow">SSE</span><strong>Eventi della risposta</strong></span>
@@ -129,9 +123,6 @@
               </ol>
             </div>
           </details>
-        </aside>
-      </div>
-
       <section class="card diagnostics-card" aria-labelledby="diagnostics-title">
         <div class="section-heading diagnostics-heading">
           <div>
@@ -155,8 +146,9 @@
         </div>
         <p class="privacy-note">La diagnostica può contenere messaggi, prompt e bozze. API amministrative e playground sono senza autenticazione: mantieni il servizio su localhost.</p>
       </section>
+      </div>
+<!-- /LIVE:DEBUG -->
     </main>
-
     <footer class="footer"><strong>kAIros Playground</strong><span>Uno spazio per sperimentare, un impegno alla volta.</span></footer>
   </body>
 </html>

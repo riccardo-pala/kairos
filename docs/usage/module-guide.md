@@ -15,13 +15,13 @@ uv sync --dev
 
 ## Use the CLI
 
-Start the scripted demo without a model:
+The CLI uses a real local Ollama model (`qwen3:8b` by default). Start Ollama before running:
 
 ```bash
 uv run python -m kairos
 ```
 
-For a real conversation, start Ollama and select a model that supports tool calling:
+To select the model, language, and timezone explicitly:
 
 ```bash
 uv run python -m kairos --model qwen3:8b --language it --timezone Europe/Rome
@@ -31,7 +31,7 @@ Use `--language en` for English interface messages, `--think` to enable model re
 
 ## Use the HTTP API
 
-Start the API and its PostgreSQL database by following the [local infrastructure setup](local-infrastructure.md). The provider-profile migration installs a deterministic demo profile, active by default; it does not interpret arbitrary text. Provider profiles and the active selection are stored in PostgreSQL and survive API restarts.
+Start the API and its PostgreSQL database by following the [local infrastructure setup](local-infrastructure.md). Database migrations install Ollama and Hugging Face profiles; Ollama is selected initially when there is no existing real-provider selection. Provider profiles and the active selection are stored in PostgreSQL and survive API restarts.
 
 `GET /health` checks the database connection. `POST /sessions` creates a UUID session and stores the selected interface language and IANA timezone:
 
@@ -40,6 +40,8 @@ curl -s http://127.0.0.1:8000/sessions \
   -H 'Content-Type: application/json' \
   -d '{"language":"en","timezone":"Europe/Rome"}'
 ```
+
+`PATCH /sessions/{id}/language` accepts `{"language":"en"}` or `{"language":"it"}` and preserves the draft. The playground exposes this through its navigation-bar language selector. The timezone menu is ordered by current UTC offset and configures newly created sessions.
 
 Use the returned `id` to send a turn. The client sends only the current message; it does not send `EventWorkflowState`:
 
@@ -69,13 +71,15 @@ The local OpenAPI page is available at `http://127.0.0.1:8000/docs`.
 
 ### Use the local playground
 
+For the public, browser-only simulation, see the [public demo guide](public-demo.md). The real playground remains a localhost development tool.
+
 With Docker Compose running, open `http://127.0.0.1:8000/`. The page creates and chats through a session, displays SSE progress/text/completed/error events, shows the validated draft, and lets you list and activate the built-in provider profiles. Its diagnostics panel reads recent structured API, connector, and workflow logs from a bounded in-memory buffer and can filter by the request ID returned with each turn. The buffer is local to the API process and clears on restart. The playground and its admin endpoints have no authentication; keep them on localhost. Logs may contain prompts, user messages, and session data.
 
 Contextual choices appear in the conversation. Selecting one opens its structured widget while free-text chat remains available. Duration and reminder widgets accept a number and a unit: minutes, hours, or days. The draft displays these intervals as days, hours, and minutes, omitting zero-valued units. A zero-offset reminder is shown as occurring at the event start. Structured actions still send normalized minute values to the API.
 
 ### Select a model provider
 
-The database migration installs three built-in profiles: deterministic **Demo** (active initially), **Local Ollama (Qwen 3 8B)** using `qwen3:8b`, and **Hugging Face (Qwen3 8B)** using `Qwen/Qwen3-8B`. The Hugging Face router selects a compatible inference provider automatically from the bare model ID. These profiles are fixed in this prototype; the local admin API only lists them and activates one.
+The database contains two built-in profiles: **Local Ollama (Qwen 3 8B)** using `qwen3:8b`, and **Hugging Face (Qwen3 8B)** using `Qwen/Qwen3-8B`. Migration `003` removes the historical demo profile and preserves any active real provider. The Hugging Face router selects a compatible inference provider automatically from the bare model ID. These profiles are fixed in this prototype; the local admin API only lists them and activates one.
 
 First list the profiles and copy the `id` of the one to use:
 
