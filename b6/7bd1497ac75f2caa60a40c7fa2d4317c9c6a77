@@ -1,0 +1,30 @@
+backend/src/kairos/demo/scenarios.py
+  s_bff12bdde01e92::t_0af0ce58841bfc 32
+  s_bff12bdde01e92::t_8fc2e4ff6be4e0 1,7-16,18-23,26-31
+backend/src/kairos/static/index.html
+  s_bff12bdde01e92::t_d44fe5b19c6948 97
+backend/src/kairos/static/ui/i18n.js
+  s_bff12bdde01e92::t_f231f7231f891e 53
+backend/tests/test_demo.py
+  s_bff12bdde01e92::t_dd6ab75d873ff5 36,38,87
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_a0dcd4fc5e1b31 51
+docs/usage/public-demo.md
+  s_bff12bdde01e92::t_e7207c8443699d 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b67bd1497ac75f2caa60a40c7fa2d4317c9c6a77",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Riccardo Pala <r.pala@reply.it>"
+    }
+  }
+}
