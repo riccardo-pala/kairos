@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, ToolResult, WorkflowError
 from kairos.i18n import MessageId
-from kairos.providers import ScriptedEventProvider
+from kairos.demo.provider import ScriptedEventProvider
 from kairos.tools import ToolDefinition, ToolRegistry, event_tools
 from kairos.workflow import EventWorkflow
 

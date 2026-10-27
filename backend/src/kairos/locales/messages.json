@@ -29,7 +29,6 @@
   "cli.ready": {"it": "Bozza pronta per la revisione:", "en": "Draft ready for review:"},
   "cli.needs_clarification": {"it": "Per continuare serve un chiarimento:", "en": "A clarification is needed to continue:"},
   "cli.session": {"it": "Bozza locale in memoria; /exit per uscire. Nessun evento verrà salvato.", "en": "Draft held in local memory; type /exit to quit. No event will be saved."},
-  "cli.demo": {"it": "DEMO: risposte predefinite, nessuna chiamata LLM o notifica reale.", "en": "DEMO: scripted responses, no real LLM calls or notifications."},
   "cli.error": {"it": "Errore", "en": "Error"},
   "cli.description": {"it": "Workflow Kairos per la bozza di un evento", "en": "Kairos event-draft workflow"},
   "cli.model_help": {"it": "Modello Ollama installato che supporti il tool calling", "en": "Installed Ollama model supporting tool calling"},
@@ -45,7 +44,6 @@
   "cli.debug_model_text": {"it": "TESTO MODELLO (provvisorio)", "en": "MODEL TEXT (provisional)"},
   "cli.debug_json": {"it": "STATO JSON DI DEBUG", "en": "DEBUG JSON STATE"},
   "api.internal_error": {"it": "Errore interno durante la preparazione della bozza.", "en": "An internal error occurred while preparing the draft."},
-  "api.demo_limit": {"it": "La modalità demo non interpreta i messaggi. Seleziona un provider con capacità di linguaggio per continuare.", "en": "Demo mode does not interpret messages. Select a language-capable provider to continue."},
   "api.session_conflict": {"it": "La sessione è stata aggiornata da un altro turno. Rileggila e riprova.", "en": "The session changed during another turn. Reload it and try again."},
   "api.session_not_found": {"it": "La sessione non esiste più.", "en": "The session no longer exists."},
   "cli.think_help": {"it": "Abilita il ragionamento interno del modello (non viene mostrato)", "en": "Enable model reasoning generation (it is not displayed)"},
@@ -64,10 +62,6 @@
   "cli.minutes": {"it": "{value} min", "en": "{value} min"},
   "cli.task_before": {"it": "prima", "en": "before"},
   "cli.task_after": {"it": "dopo", "en": "after"},
-  "demo.title": {"it": "Visita medica", "en": "Medical appointment"},
-  "demo.task": {"it": "Portare i documenti", "en": "Bring the documents"},
-  "demo.first_message": {"it": "Il 31 ottobre 2026 alle 14:30 ho una visita. Prima devo portare i documenti.", "en": "On 31 October 2026 at 14:30 I have an appointment. Before that, I need to bring the documents."},
-  "demo.second_message": {"it": "Un'ora e un giorno prima", "en": "One hour and one day beforehand"},
   "guidance.required": {"it": "Per completare la bozza", "en": "Needed to complete the draft"},
   "guidance.field.title": {"it": "Titolo", "en": "Title"},
   "guidance.field.date": {"it": "Data", "en": "Date"},
@@ -89,5 +83,6 @@
   "guidance.activity": {"it": "Attività prima o dopo", "en": "Activity before or after"},
   "guidance.placeholder.activity": {"it": "Descrivi l'attività", "en": "Describe the activity"},
   "guidance.timing.before": {"it": "Prima", "en": "Before"},
-  "guidance.timing.after": {"it": "Dopo", "en": "After"}
+  "guidance.timing.after": {"it": "Dopo", "en": "After"},
+  "demo.guidance": {"it": "Questa demo usa risposte simulate. Scegli un messaggio di esempio oppure modifica la bozza con i pulsanti qui sotto.", "en": "This demo uses simulated responses. Choose an example message or edit the draft with the controls below."}
 }

@@ -7,7 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict
 from psycopg_pool import AsyncConnectionPool
 
 
-ProviderType = Literal["demo", "ollama", "huggingface"]
+ProviderType = Literal["ollama", "huggingface"]
 
 
 class ProviderProfile(BaseModel):

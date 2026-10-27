@@ -6,7 +6,7 @@ import pytest
 
 from kairos.models.event import EventDraft
 from kairos.i18n import Language
-from kairos.providers import ScriptedEventProvider
+from kairos.demo.provider import ScriptedEventProvider
 from kairos.workflow import EventWorkflow
 from kairos.contracts import (
     EventWorkflowState,

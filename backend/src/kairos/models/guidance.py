@@ -67,7 +67,7 @@ def build_draft_guidance(draft: EventDraft, language: Language) -> DraftGuidance
     suggestions = []
 
     templates = {
-        "title": ("set_title", "title", MessageId.GUIDANCE_FIELD_TITLE, MessageId.GUIDANCE_PLACEHOLDER_TITLE),
+        "title": ("set_title", "text", MessageId.GUIDANCE_FIELD_TITLE, MessageId.GUIDANCE_PLACEHOLDER_TITLE),
         "start_date": ("set_date", "date", MessageId.GUIDANCE_FIELD_DATE, MessageId.GUIDANCE_PLACEHOLDER_DATE),
         "start_time": ("set_time", "time", MessageId.GUIDANCE_FIELD_TIME, MessageId.GUIDANCE_PLACEHOLDER_TIME),
     }

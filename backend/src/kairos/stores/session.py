@@ -7,23 +7,12 @@ from uuid import UUID
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
-from pydantic import AwareDatetime, BaseModel, ConfigDict
+from pydantic import AwareDatetime
 
 from kairos.contracts import EventWorkflowState
 from kairos.i18n import Language
-from kairos.models.guidance import DraftGuidance, build_draft_guidance
-
-
-class SessionRecord(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: UUID
-    language: Language
-    timezone: str
-    state: EventWorkflowState
-    guidance: DraftGuidance
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
+from kairos.models.guidance import build_draft_guidance
+from kairos.models.session import SessionRecord
 
 
 class SessionNotFound(Exception):
@@ -69,6 +58,26 @@ class SessionStore:
                 (session_id,),
             )
             row = await cursor.fetchone()
+        if row is None:
+            raise SessionNotFound
+        return self._record(row)
+
+    async def change_language(self, session_id: UUID, language: Language) -> SessionRecord:
+        """Atomically update language without replacing any draft field."""
+        async with self.pool.connection() as connection:
+            async with connection.transaction():
+                cursor = await connection.execute(
+                    """
+                    UPDATE sessions
+                    SET language = %s,
+                        state = jsonb_set(state, '{conversation_language}', to_jsonb(%s::text)),
+                        updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
+                    WHERE id = %s
+                    RETURNING id, language, timezone, state, created_at, updated_at
+                    """,
+                    (language.value, language.value, session_id),
+                )
+                row = await cursor.fetchone()
         if row is None:
             raise SessionNotFound
         return self._record(row)
@@ -144,9 +153,7 @@ async def apply_migrations(pool: AsyncConnectionPool) -> None:
                 )
                 if await cursor.fetchone() is not None:
                     continue
-                for statement in migration.read_text(encoding="utf-8").split(";"):
-                    if statement.strip():
-                        await connection.execute(statement)
+                await connection.execute(migration.read_text(encoding="utf-8"), prepare=False)
                 await connection.execute(
                     "INSERT INTO schema_migrations (version) VALUES (%s)",
                     (migration.stem,),

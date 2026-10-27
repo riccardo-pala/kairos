@@ -1,4 +1,4 @@
-"""Run `python -m kairos` for a scripted demo, or select an Ollama model."""
+"""Run the real event workflow against a local Ollama model."""
 
 import argparse
 import asyncio
@@ -9,8 +9,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from kairos.providers import OllamaEventProvider, ScriptedEventProvider
-from kairos.contracts import EventWorkflowState, RequestContext, ToolCall, WorkflowError
+from kairos.providers import OllamaEventProvider
+from kairos.contracts import EventWorkflowState, RequestContext, WorkflowError
 from kairos.i18n import Language, MessageId, translate
 from kairos.models.guidance import build_draft_guidance
 from kairos.workflow import EventWorkflow
@@ -106,76 +106,45 @@ async def run(args):
     debug_draft_json = args.debug or args.debug_draft_json
     debug_validation = args.debug or args.debug_validation
     async with httpx.AsyncClient(base_url="http://localhost:11434", timeout=60.0) as client:
-        if args.model:
-            def trace(direction: str, content: str) -> None:
-                _model_io_trace(direction, content, context.language)
+        def trace(direction: str, content: str) -> None:
+            _model_io_trace(direction, content, context.language)
 
-            workflow = EventWorkflow(OllamaEventProvider(
-                args.model,
-                client,
-                think=args.think,
-                model_io_callback=trace if debug_model_io else None,
-            ))
-            print(text(MessageId.CLI_SESSION))
-            while True:
-                message = await asyncio.to_thread(input, "> ")
-                if message == "/exit":
-                    break
-                try:
-                    async for event in workflow.stream_advance(state, message, context):
-                        if event.kind == "progress":
-                            print(event.message, flush=True)
-                        elif event.kind == "completed":
-                            state = event.state
-                            if state.question:
-                                print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
-                            elif state.status == "ready_for_review":
-                                print(text(MessageId.CLI_READY))
-                            else:
-                                print(text(MessageId.CLI_DRAFT_UPDATED))
-                                missing = build_draft_guidance(
-                                    state.draft, state.conversation_language or context.language
-                                ).required_missing
-                                if missing:
-                                    labels = ", ".join(field.label for field in missing)
-                                    print(f"{text(MessageId.CLI_REQUIRED_FIELDS)}: {labels}")
-                            print_draft(state, context.language, debug=debug_draft_json)
-                except WorkflowError as exc:
-                    print(f"{text(MessageId.CLI_ERROR)}: {exc.text(context.language)}")
-                    if debug_validation and exc.__cause__ is not None:
-                        details = f"[DEBUG validation] {exc.__cause__}"
-                        color_debug = sys.stderr.isatty() and "NO_COLOR" not in os.environ
-                        print(_debug_style(details, "35", color_debug), file=sys.stderr, flush=True)
-        else:
-            print(text(MessageId.CLI_DEMO))
-            provider = ScriptedEventProvider([
-                ToolCall(name="update_event_draft", arguments={"patch": {
-                    "title": text(MessageId.DEMO_TITLE), "start_date": "2026-10-31",
-                    "start_time": "14:30",
-                    "location": "Ambulatorio X", "duration_minutes": 30,
-                }, "task_operations": {
-                    "add": [{
-                        "description": text(MessageId.DEMO_TASK),
-                        "timing": "before",
-                        "evidence": text(MessageId.DEMO_FIRST_MESSAGE),
-                    }],
-                }}),
-                ToolCall(name="update_event_draft", arguments={"patch": {
-                    "reminders": [{"minutes_before": 60}, {"minutes_before": 1440}],
-                }}),
-            ])
-            workflow = EventWorkflow(provider)
-            for message in [text(MessageId.DEMO_FIRST_MESSAGE), text(MessageId.DEMO_SECOND_MESSAGE)]:
-                print(f"> {message}")
-                state = await workflow.advance(state, message, context)
-                if state.question:
-                    print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
-                elif state.status == "ready_for_review":
-                    print(text(MessageId.CLI_READY))
-                else:
-                    print(text(MessageId.CLI_DRAFT_UPDATED))
-                print_draft(state, context.language, debug=debug_draft_json)
-
+        workflow = EventWorkflow(OllamaEventProvider(
+            args.model,
+            client,
+            think=args.think,
+            model_io_callback=trace if debug_model_io else None,
+        ))
+        print(text(MessageId.CLI_SESSION))
+        while True:
+            message = await asyncio.to_thread(input, "> ")
+            if message == "/exit":
+                break
+            try:
+                async for event in workflow.stream_advance(state, message, context):
+                    if event.kind == "progress":
+                        print(event.message, flush=True)
+                    elif event.kind == "completed":
+                        state = event.state
+                        if state.question:
+                            print(f"{text(MessageId.CLI_NEEDS_CLARIFICATION)} {state.question}")
+                        elif state.status == "ready_for_review":
+                            print(text(MessageId.CLI_READY))
+                        else:
+                            print(text(MessageId.CLI_DRAFT_UPDATED))
+                            missing = build_draft_guidance(
+                                state.draft, state.conversation_language or context.language
+                            ).required_missing
+                            if missing:
+                                labels = ", ".join(field.label for field in missing)
+                                print(f"{text(MessageId.CLI_REQUIRED_FIELDS)}: {labels}")
+                        print_draft(state, context.language, debug=debug_draft_json)
+            except WorkflowError as exc:
+                print(f"{text(MessageId.CLI_ERROR)}: {exc.text(context.language)}")
+                if debug_validation and exc.__cause__ is not None:
+                    details = f"[DEBUG validation] {exc.__cause__}"
+                    color_debug = sys.stderr.isatty() and "NO_COLOR" not in os.environ
+                    print(_debug_style(details, "35", color_debug), file=sys.stderr, flush=True)
 
 def main():
     language_parser = argparse.ArgumentParser(add_help=False)
@@ -183,7 +152,7 @@ def main():
     language_args, _ = language_parser.parse_known_args()
     language = Language(language_args.language)
     parser = argparse.ArgumentParser(description=translate(MessageId.CLI_DESCRIPTION, language))
-    parser.add_argument("--model", help=translate(MessageId.CLI_MODEL_HELP, language))
+    parser.add_argument("--model", default="qwen3:8b", help=translate(MessageId.CLI_MODEL_HELP, language))
     parser.add_argument("--think", action="store_true",
                         help=translate(MessageId.CLI_THINK_HELP, language))
     parser.add_argument("--language", choices=list(Language), default=Language.IT,

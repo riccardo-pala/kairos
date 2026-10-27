@@ -19,13 +19,13 @@ from psycopg_pool import AsyncConnectionPool
 from kairos.contracts import (
     EventWorkflowState,
     RequestContext,
-    ToolCall,
     WorkflowError,
     WorkflowEvent,
 )
 from kairos.i18n import Language, MessageId, translate
 from kairos.models.actions import DraftAction
-from kairos.providers import HuggingFaceEventProvider, OllamaEventProvider, ScriptedEventProvider
+from kairos.models.session import ChangeLanguageRequest
+from kairos.providers import HuggingFaceEventProvider, OllamaEventProvider
 from kairos.stores import (
     ProviderProfile,
     ProviderProfileNotFound,
@@ -80,27 +80,6 @@ async def _action_events(
         kind="completed",
         state=EventWorkflow.apply_action(state, action, context),
     )
-
-
-def _development_provider(state: EventWorkflowState, language: Language, timezone: str, now: datetime):
-    """Create a fresh scripted demo provider for this turn; it keeps no session state."""
-    draft = state.draft
-    patch = {}
-    if not draft.title:
-        patch["title"] = translate(MessageId.DEMO_TITLE, language)
-    if draft.start_date is None:
-        patch["start_date"] = (now.astimezone(ZoneInfo(timezone)).date()).isoformat()
-    if draft.start_time is None:
-        patch["start_time"] = "12:00"
-    if not draft.timezone:
-        patch["timezone"] = timezone
-    if patch:
-        call = ToolCall(name="update_event_draft", arguments={"patch": patch})
-    else:
-        call = ToolCall(name="ask_event_clarification", arguments={
-            "question": translate(MessageId.API_DEMO_LIMIT, language)
-        })
-    return ScriptedEventProvider([call])
 
 
 def create_app(settings: APISettings | None = None) -> FastAPI:
@@ -256,6 +235,13 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                 detail="Provider profile not found.",
             ) from exc
 
+    @app.patch("/sessions/{session_id}/language", response_model=SessionRecord)
+    async def change_session_language(session_id: UUID, body: ChangeLanguageRequest, request: Request):
+        try:
+            return await request.app.state.session_store.change_language(session_id, body.language)
+        except SessionNotFound as exc:
+            raise HTTPException(status_code=404, detail="Session not found.") from exc
+
     @app.post(
         "/sessions",
         response_model=SessionRecord,
@@ -366,8 +352,6 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
                     failure_callback=provider_failure_callback,
                     debug_connector_logs=configured.debug_connector_logs,
                 )
-            else:
-                provider = _development_provider(session.state, session.language, session.timezone, now)
             workflow = EventWorkflow(provider)
 
         provider_name = profile.provider_type if profile is not None else "structured_action"

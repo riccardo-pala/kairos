@@ -8,37 +8,27 @@ from kairos.contracts import EventWorkflowState, WorkflowError, WorkflowEvent
 from kairos.i18n import MessageId
 
 
-@pytest.mark.parametrize("language,expected_title,expected_intro", [
-    ("it", "Visita medica", "risposte predefinite"),
-    ("en", "Medical appointment", "scripted responses"),
-])
-def test_demo_uses_selected_language_without_contacting_a_model(
-    monkeypatch, capsys, language, expected_title, expected_intro
-):
+@pytest.mark.parametrize("language", ["it", "en"])
+def test_default_cli_uses_real_ollama_without_a_demo_fallback(monkeypatch, capsys, language):
+    import kairos.__main__ as cli
+    observed = []
+    monkeypatch.setattr(cli, "OllamaEventProvider", lambda model, client, **kwargs: observed.append(model))
+    monkeypatch.setattr(builtins, "input", lambda prompt: "/exit")
     monkeypatch.setattr(sys, "argv", ["kairos", "--language", language])
     main()
-    output = capsys.readouterr().out
-    assert expected_intro in output
-    assert expected_title in output
-    assert "pronta per la revisione" in output or "ready for review" in output
-    assert "Dati della bozza:" in output or "Draft details:" in output
-    assert '"title"' not in output
-    assert '"reminders"' not in output
+    assert observed == ["qwen3:8b"]
+    assert "risposte predefinite" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("language,expected_debug_help", [
-    ("it", "Mostra anche lo stato JSON"),
-    ("en", "Also print the draft state as JSON"),
+    ("it", "Mostra su stdout lo stato JSON della bozza"), ("en", "Print the draft state as JSON on stdout"),
 ])
-def test_debug_flag_prints_json_and_help_is_localized(
-    monkeypatch, capsys, language, expected_debug_help
-):
-    monkeypatch.setattr(sys, "argv", ["kairos", "--language", language, "--debug"])
-    main()
+def test_debug_flag_prints_json_and_help_is_localized(monkeypatch, capsys, language, expected_debug_help):
+    from kairos.__main__ import print_draft
+    from kairos.i18n import Language
+    print_draft(EventWorkflowState(), Language(language), debug=True)
     output = capsys.readouterr().out
-    assert '"title"' in output
-    assert '"reminders"' in output
-
+    assert '"title"' in output and '"reminders"' in output
     monkeypatch.setattr(sys, "argv", ["kairos", "--language", language, "--help"])
     with pytest.raises(SystemExit) as exc:
         main()
