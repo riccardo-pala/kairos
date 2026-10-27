@@ -1,0 +1,79 @@
+backend/src/kairos/static/playground.js
+  s_bff12bdde01e92::t_2e774cee65b929 1-4,8-9,31-32,50-51,53,89-90,93,95,104-106,116,129,213-218,220-221,223-227,230-242,244,246-253,255-259,262
+  s_bff12bdde01e92::t_3981a68e2ff723 33
+  s_bff12bdde01e92::t_41f63755e29096 6,29,48,52,56,86,115,163,176,197-202,204-205,208-211,228-229,243,245
+  s_bff12bdde01e92::t_b6b5e2f2e7d49c 206
+backend/src/kairos/static/playground-config.json
+  s_bff12bdde01e92::t_b00fec678fc593 1
+backend/src/kairos/static/index.html
+  s_bff12bdde01e92::t_2e774cee65b929 8-9,11,13-14,24,35-40,47,51-71,82-91,94,112-114,149-150
+  s_bff12bdde01e92::t_3981a68e2ff723 19-23,41,44
+backend/src/kairos/static/ui/state.js
+  s_bff12bdde01e92::t_3981a68e2ff723 5
+  s_bff12bdde01e92::t_2e774cee65b929 1-4,6-23
+docs/usage/public-demo.md
+  s_bff12bdde01e92::t_d3cef8828f3426 13-14
+  s_bff12bdde01e92::t_a55c79570af353 1-12,15-37
+backend/src/kairos/static/ui/diagnostics.js
+  s_bff12bdde01e92::t_2e774cee65b929 1-155
+docs/technology/architecture.md
+  s_bff12bdde01e92::t_5d7aa0db224851 56,77-84
+docs/usage/module-guide.md
+  s_bff12bdde01e92::t_d3cef8828f3426 18,24,34,44-45,74-75,82
+backend/src/kairos/static/playground.css
+  s_bff12bdde01e92::t_3981a68e2ff723 302-308
+  s_bff12bdde01e92::t_734478c064f388 309-315
+  s_bff12bdde01e92::t_2e774cee65b929 259-301
+.gitignore
+  s_bff12bdde01e92::t_cf1cfc4da03211 9-10
+backend/src/kairos/static/demo/worker.js
+  s_bff12bdde01e92::t_b00fec678fc593 1-40
+docs/usage/local-infrastructure.md
+  s_bff12bdde01e92::t_466fe106860e47 17
+scripts/build_pages_demo.py
+  s_bff12bdde01e92::t_1c578bf55d8bd7 72
+  s_bff12bdde01e92::t_cf1cfc4da03211 1-71,73-91
+scripts/check_pages_demo.mjs
+  s_bff12bdde01e92::t_a55c79570af353 1-35,40-49
+  s_bff12bdde01e92::t_d3cef8828f3426 36-39
+backend/src/kairos/static/demo/client.js
+  s_bff12bdde01e92::t_b00fec678fc593 1-42,46-58
+  s_bff12bdde01e92::t_3981a68e2ff723 43-45
+backend/src/kairos/static/ui/draft.js
+  s_bff12bdde01e92::t_2e774cee65b929 2-6,8-20,22-28,30-31,33-45,47-337
+  s_bff12bdde01e92::t_41f63755e29096 1,7,21,29,32,46
+.github/workflows/pages-demo.yml
+  s_bff12bdde01e92::t_cf1cfc4da03211 1-32,36-41,44-50
+  s_bff12bdde01e92::t_1c578bf55d8bd7 33-35,42-43
+README.md
+  s_bff12bdde01e92::t_a45bebce472029 11-12
+backend/src/kairos/static/ui/i18n.js
+  s_bff12bdde01e92::t_41f63755e29096 1-13,15-26,31-79,95-99,102,108-110
+  s_bff12bdde01e92::t_d3cef8828f3426 14,27-30
+  s_bff12bdde01e92::t_2566c5e1c5547a 80-94,100-101,103-107
+backend/src/kairos/static/clients/http.js
+  s_bff12bdde01e92::t_b00fec678fc593 1-13,19-25
+  s_bff12bdde01e92::t_3981a68e2ff723 14-18
+backend/src/kairos/static/ui/messages.js
+  s_bff12bdde01e92::t_41f63755e29096 1,12,19,29
+  s_bff12bdde01e92::t_2e774cee65b929 2-11,13-18,20-28,30-51
+backend/src/kairos/static/demo/examples.js
+  s_bff12bdde01e92::t_2e774cee65b929 1-12,19-57
+  s_bff12bdde01e92::t_b6b5e2f2e7d49c 13-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6edc51e7e0a282f2b2a8b4c35b1f727e49cc70b6",
+  "prompts": {},
+  "sessions": {
+    "s_bff12bdde01e92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16f9a-7cb6-7e42-b296-a09878dbd60f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
