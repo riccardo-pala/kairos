@@ -48,7 +48,7 @@ Use the returned `id` to send a turn. The client sends only the current message;
 ```bash
 curl -N http://127.0.0.1:8000/sessions/SESSION_UUID/turn \
   -H 'Content-Type: application/json' \
-  -d '{"message":"I need to take my motorcycle to the mechanic tomorrow"}'
+  -d '{"message":"Tomorrow I want to visit a museum in Rome"}'
 ```
 
 The response is Server-Sent Events (SSE): `progress` reports workflow phases, `text` carries optional model text, `completed` contains the persisted session, draft, and derived guidance, and `error` reports a workflow or concurrency error. A completed state is committed before its SSE event is sent. `GET /sessions/SESSION_UUID` reads the current draft, guidance, and session metadata. Only the current state is stored; chat messages and transcript history are not saved or sent to the model. The model receives the current user message, draft, and previous question as context, but the question does not restrict which fields can be updated.

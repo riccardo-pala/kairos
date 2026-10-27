@@ -50,7 +50,7 @@ export function applyUiLanguage() {
   }
   set(".empty-state strong", "Da un pensiero a un impegno.", "From an idea to a plan.");
   set(".empty-state p:not(.empty-example)", "Crea una sessione, poi racconta cosa hai in programma.", "Create a session, then describe what you have planned.");
-  set(".empty-example", "“Devo andare dal meccanico domani”", "“I need to go to the mechanic tomorrow”");
+  set(".empty-example", "“Domani voglio visitare un museo a Roma”", "“Tomorrow I want to visit a museum in Rome”");
   $("#message-input").placeholder = en ? "Write a message or add more details…" : "Scrivi un messaggio o aggiungi altri dettagli…";
   set(".composer .sr-only", "Il tuo messaggio", "Your message");
   set(".composer .hint", "Invio per spedire · Maiusc+Invio per andare a capo", "Enter to send · Shift+Enter for a new line");

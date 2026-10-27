@@ -6,7 +6,9 @@ The demo displays only session creation, chat, and the current draft. Provider c
 
 ## Try the demo
 
-Create a session, then select one of the guided conversations: the mechanic, dinner, or studying Python. Each conversation proposes the next example message. Structured controls accept your own field values and use the real Python workflow to validate them. Unsupported free text receives an explanation rather than fabricated event data.
+All scenarios are fictional. Public examples must not be taken from private conversations, personal appointments, or identifying addresses.
+
+Create a session, then select one of the guided conversations: a museum visit in Rome, dinner in London, or a picnic in New York. Each conversation proposes the next example message. Structured controls accept your own field values and use the real Python workflow to validate them. Unsupported free text receives an explanation rather than fabricated event data.
 
 Responses and the short progress delay are explicitly simulated. Session data stays in memory in the current browser tab and is cleared when the page is reloaded or a new session is created. Italian and English examples are available.
 

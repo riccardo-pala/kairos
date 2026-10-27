@@ -33,9 +33,9 @@ def test_guided_scenarios_use_validated_workflow_and_do_not_invent_tasks(languag
     assert session['state']['status'] == 'ready_for_review'
     if scenario_index == 0:
         assert session['state']['draft']['tasks'] == []
-        assert session['state']['draft']['reminders'] == [{'minutes_before': 120}]
+        assert session['state']['draft']['reminders'] == [{'minutes_before': 45}]
     elif scenario_index == 1:
-        assert session['state']['draft']['duration_minutes'] == 120
+        assert session['state']['draft']['duration_minutes'] == 90
         assert session['state']['draft']['reminders'] == []
     else:
         assert session['state']['draft']['tasks'][0]['timing'] == 'after'
@@ -84,4 +84,4 @@ def test_changing_language_preserves_draft_and_localizes_following_guidance():
     assert changed['state']['draft'] == completed['state']['draft']
     assert changed['state']['conversation_language'] == 'en'
     assert changed['guidance']['required_missing'][0]['label'] == 'Time'
-    assert changed['demo_examples'][0]['label'] == 'At the mechanic'
+    assert changed['demo_examples'][0]['label'] == 'A museum visit'
